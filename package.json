@@ -1,0 +1,18 @@
+{
+  "name": "ebc",
+  "version": "1.0.0",
+  "description": "- register your hero on server http://server/codenjoy-contest/register - read the rules: https://epam-botchallenge.com/rules - copy board page browser url from Rules page and paste into url variable of Runner.js - write your own bot at 'get' function in `Runner.js`",
+  "main": "BrowserNodeStub.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "watch": "tsc --watch"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "typescript": "^4.1.2"
+  }
+}

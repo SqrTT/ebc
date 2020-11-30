@@ -1,0 +1,15 @@
+{
+    "compilerOptions": {
+        "strictNullChecks": true,
+        "lib": ["ES2020", "DOM"],
+        "moduleResolution": "node",
+        "allowJs": true,
+        "outFile": "./out/index.js",
+        "alwaysStrict": true,
+        "module": "AMD",
+        "sourceMap": true
+    },
+    "include": [
+        "./src/main.ts"
+    ],
+}
