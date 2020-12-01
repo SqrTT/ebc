@@ -1,4 +1,4 @@
-import Direction from './Direction'
+import DirectionList from './Direction'
 
 var elements = [] as Element[];
 var elementsTypes = [] as string[];
@@ -6,7 +6,7 @@ var elementsByChar = {};
 var elementsByType = {};
 
 export class Element {
-    constructor(public readonly char: string, public readonly type: string, public readonly direction?: Direction) {
+    constructor(public readonly char: string, public readonly type: string, public readonly direction?: DirectionList) {
         elementsByChar[char] = this;
 
         if (!elementsByType[type]) {
@@ -22,7 +22,7 @@ export class Element {
     }
 }
 
-function el(char: string, type: string, direction?: Direction) {
+function el(char: string, type: string, direction?: DirectionList) {
     return new Element(char, type, direction);
 }
 const elementsList = {
@@ -43,15 +43,15 @@ const elementsList = {
     ANGLE_OUT_LEFT: el('╚', 'WALL'),
     SPACE: el(' ', 'WALL'),
 
-    LASER_MACHINE_CHARGING_LEFT: el('˂', 'LASER_MACHINE', Direction.LEFT),
-    LASER_MACHINE_CHARGING_RIGHT: el('˃', 'LASER_MACHINE', Direction.RIGHT),
-    LASER_MACHINE_CHARGING_UP: el('˄', 'LASER_MACHINE', Direction.UP),
-    LASER_MACHINE_CHARGING_DOWN: el('˅', 'LASER_MACHINE', Direction.DOWN),
+    LASER_MACHINE_CHARGING_LEFT: el('˂', 'LASER_MACHINE', DirectionList.LEFT),
+    LASER_MACHINE_CHARGING_RIGHT: el('˃', 'LASER_MACHINE', DirectionList.RIGHT),
+    LASER_MACHINE_CHARGING_UP: el('˄', 'LASER_MACHINE', DirectionList.UP),
+    LASER_MACHINE_CHARGING_DOWN: el('˅', 'LASER_MACHINE', DirectionList.DOWN),
 
-    LASER_MACHINE_READY_LEFT: el('◄', 'LASER_MACHINE_READY', Direction.LEFT),
-    LASER_MACHINE_READY_RIGHT: el('►', 'LASER_MACHINE_READY', Direction.RIGHT),
-    LASER_MACHINE_READY_UP: el('▲', 'LASER_MACHINE_READY', Direction.UP),
-    LASER_MACHINE_READY_DOWN: el('▼', 'LASER_MACHINE_READY', Direction.DOWN),
+    LASER_MACHINE_READY_LEFT: el('◄', 'LASER_MACHINE_READY', DirectionList.LEFT),
+    LASER_MACHINE_READY_RIGHT: el('►', 'LASER_MACHINE_READY', DirectionList.RIGHT),
+    LASER_MACHINE_READY_UP: el('▲', 'LASER_MACHINE_READY', DirectionList.UP),
+    LASER_MACHINE_READY_DOWN: el('▼', 'LASER_MACHINE_READY', DirectionList.DOWN),
 
     START: el('S', 'START'),
     EXIT: el('E', 'EXIT'),
@@ -70,10 +70,10 @@ const elementsList = {
     ROBOT_OTHER_FLYING: el('^', 'OTHER_ROBOT'),
     ROBOT_OTHER_LASER: el('&', 'OTHER_ROBOT'),
 
-    LASER_LEFT: el('←', 'LASER_LEFT', Direction.LEFT),
-    LASER_RIGHT: el('→', 'LASER_RIGHT', Direction.RIGHT),
-    LASER_UP: el('↑', 'LASER_UP', Direction.UP),
-    LASER_DOWN: el('↓', 'LASER_DOWN', Direction.DOWN),
+    LASER_LEFT: el('←', 'LASER_LEFT', DirectionList.LEFT),
+    LASER_RIGHT: el('→', 'LASER_RIGHT', DirectionList.RIGHT),
+    LASER_UP: el('↑', 'LASER_UP', DirectionList.UP),
+    LASER_DOWN: el('↓', 'LASER_DOWN', DirectionList.DOWN),
 
     FEMALE_ZOMBIE: el('♀', 'ZOMBIE'),
     MALE_ZOMBIE: el('♂', 'ZOMBIE'),

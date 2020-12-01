@@ -1,6 +1,6 @@
 import Point from './Point';
-import elementsList from './Element';
-import Direction from './Direction';
+import elementsList, { Element } from './Element';
+import DirectionList from './Direction';
 
 const LAYER1 = 0;
 const LAYER2 = 1;
@@ -46,14 +46,14 @@ interface XY {
 }
 
 var Board = function (board) {
-    var layersString : string[] = board.layers;
-    var scannerOffset : XY = board.offset;
-    var heroPosition : XY = board.heroPosition;
-    var levelFinished : boolean = board.levelFinished;
+    var layersString: string[] = board.layers;
+    var scannerOffset: XY = board.offset;
+    var heroPosition: XY = board.heroPosition;
+    var levelFinished: boolean = board.levelFinished;
     var size = Math.sqrt(layersString[LAYER1].length);
     var xyl = new LengthToXY(size);
 
-    var parseLayer = function (layer : string) {
+    var parseLayer = function (layer: string) {
         var map = [] as Element[][];
         for (var x = 0; x < size; x++) {
             map[x] = [];
@@ -64,7 +64,7 @@ var Board = function (board) {
         return map;
     }
 
-    var layers = [] as  Element[][][];
+    var layers = [] as Element[][][];
     for (var index in layersString) {
         layers.push(parseLayer(layersString[index]));
     }
@@ -130,7 +130,7 @@ var Board = function (board) {
             arr.push(elements);
             elements = arr;
         }
-        var result = [];
+        var result: Point[] = [];
         for (var x = 0; x < size; x++) {
             for (var y = 0; y < size; y++) {
                 for (var e in elements) {
@@ -355,6 +355,22 @@ var Board = function (board) {
                 mask[x][y] = (isWallAt(x, y)) ? -1 : 0;
             }
         }
+        for (const laser of getLasers()) {
+            var direction = laser.direction;
+            if (direction) {
+                const dir = DirectionList.get(direction);
+
+                if (dir) {
+                    var next = dir.change(laser);
+                    if (!isOutOf(next.x, next.y)) {
+                        mask[next.x][next.y] = -1;
+                    }
+                }
+            }
+        }
+        for (const laserMachine of getLaserMachines()) {
+            mask[laserMachine.x][laserMachine.y] = -1;
+        }
 
         var getMask = function (x, y) {
             return getFromArray(x, y, mask, -1);
@@ -363,7 +379,7 @@ var Board = function (board) {
         var current = 1;
         mask[from.getX()][from.getY()] = current;
 
-        var isOutOf = function (x, y) {
+        function isOutOf(x, y) {
             return (x < 0 || y < 0 || x >= size || y >= size);
         }
 
@@ -616,9 +632,9 @@ var Board = function (board) {
         let count = 100;
         let pos = from;
         /**
-         * @type {Direction}
+         * @type {DirectionList}
          */
-        const dir = Direction.where(from, to);
+        const dir = DirectionList.where(from, to);
 
         while (count--) {
             const el = getAt(LAYER1, pos.x, pos.y)

@@ -4,7 +4,7 @@ import connectionEnv from '../env';
 import WSocket from './ws';
 import elementsList from './Element';
 import Board from './Board'
-import Direction from './Direction';
+import DirectionList from './Direction';
 import Command from './Command';
 import { CanvasDrawer } from './CanvasDrawer';
 
@@ -51,6 +51,7 @@ var log = function (string) {
         printLogOnTextArea(string);
     }
 };
+let fireTick = -Infinity;
 
 const canvasDrawer = new CanvasDrawer('board-canvas');
 
@@ -58,6 +59,13 @@ var processBoard = function (boardString: string) {
     var boardJson = JSON.parse(boardString.replace('board=', ''));
     var board = new Board(boardJson);
     tick++;
+
+    const isDied = boardJson.layers[1].includes('☻');
+
+    if (isDied) {
+        fireTick = -Infinity;
+    }
+
     canvasDrawer.renderBoard(board);
     printBoardOnTextArea("Tick: " + tick + "\n" + board.toString());
 
@@ -119,7 +127,6 @@ function getDistance(from, to) {
     return Math.sqrt(a * a + b * b);
 }
 
-let fireTick = -Infinity;
 /**
  *
  * @param {ReturnType<Board>} board
@@ -139,7 +146,7 @@ var YourSolver = function (board) {
              */
             var shortGold;
 
-            if (fireTick + 3 <= tick) {
+            if (fireTick + 2 <= tick) {
                 const enemies = board.getOtherHeroes().concat(board.getZombies())
                     .map(goldPt => ({ pos: goldPt, distance: getDistance(hero, goldPt) }))
                     .sort((a, b) => {
@@ -150,7 +157,7 @@ var YourSolver = function (board) {
 
                 if (reachable) {
 
-                    const dir = Direction.where(hero, reachable.pos);
+                    const dir = DirectionList.where(hero, reachable.pos);
                     if (dir) {
                         fireTick = tick;
                         return Command.fire(dir);
@@ -173,7 +180,7 @@ var YourSolver = function (board) {
 
                 if (way && way[1]) {
                     const nextStep = shortGold || way[1];
-                    const dir = Direction.where(hero, nextStep);
+                    const dir = DirectionList.where(hero, nextStep);
 
                     if (dir) {
                         if (board.getBoxes().concat(board.getHoles()).some(hole => nextStep.equals(hole))) {
@@ -188,7 +195,7 @@ var YourSolver = function (board) {
                 const nearest = distancesToGold[0];
                 const nextStep = nearest[1];
 
-                const dir = Direction.where(hero, nextStep);
+                const dir = DirectionList.where(hero, nextStep);
 
                 if (dir) {
                     if (board.getBoxes().concat(board.getHoles()).some(hole => nextStep.equals(hole))) {
@@ -201,14 +208,14 @@ var YourSolver = function (board) {
             const enemiesPath = board.getOtherHeroes().concat(board.getZombies())
                 .map(goldPt => board.getShortestWay(hero, goldPt)).sort((a, b) => {
                     return a.length - b.length;
-                }).filter(a => a.length)
+                }).filter(a => a.length > 2)
 
             if (enemiesPath.length) {
                 const nearest = enemiesPath[0];
                 const nextStep = nearest[1];
 
                 if (nextStep) {
-                    const dir = Direction.where(hero, nextStep);
+                    const dir = DirectionList.where(hero, nextStep);
 
                     if (dir) {
                         if (board.getBoxes().concat(board.getHoles()).some(hole => nextStep.equals(hole))) {

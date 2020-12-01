@@ -1,4 +1,4 @@
-import Direction from "./Direction";
+import DirectionList from "./Direction";
 
  const Command = {
 
@@ -6,49 +6,49 @@ import Direction from "./Direction";
      * Says to Hero do nothing
      */
     doNothing: function () {
-        return Direction.STOP.toString();
+        return DirectionList.STOP.toString();
     },
 
     /**
      * Reset current level
      */
     die: function () {
-        return Direction.DIE.toString();
+        return DirectionList.DIE.toString();
     },
 
     /**
      * Says to Hero jump to direction
      */
     jump: function (direction) {
-        return Direction.JUMP.toString() + "," + direction.toString();
+        return DirectionList.JUMP.toString() + "," + direction.toString();
     },
 
     /**
      * Says to Hero pull box on this direction
      */
     pull: function (direction) {
-        return Direction.PULL.toString() + "," + direction.toString();
+        return DirectionList.PULL.toString() + "," + direction.toString();
     },
 
     /**
      * Says to Hero fire on this direction
      */
     fire: function (direction) {
-        return Direction.FIRE.toString() + "," + direction.toString();
+        return DirectionList.FIRE.toString() + "," + direction.toString();
     },
 
     /**
      * Says to Hero go to direction
      */
     go: function (direction) {
-        return Direction.valueOf(direction.toString()).toString();
+        return DirectionList.valueOf(direction.toString()).toString();
     },
 
     /**
      * Says to Hero goes to start point
      */
     reset: function () {
-        return Direction.DIE.toString();
+        return DirectionList.DIE.toString();
     }
 }
 

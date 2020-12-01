@@ -1,5 +1,7 @@
+import DirectionList, { Direction } from "./Direction";
+
 export default class Point {
-    constructor(public readonly  x : number, public readonly y : number) {}
+    constructor(public readonly  x : number, public readonly y : number, public readonly direction? : string) {}
 
     equals(o) {
         return o.getX() === this.x && o.getY() === this.y;
