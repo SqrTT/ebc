@@ -15,7 +15,7 @@ function pt(x, y) {
     return new Point(x, y);
 };
 
-var printArray = function (array: Element[]) {
+var printArray = function (array: Element[] | Point[]) {
     var result = [] as string[];
     for (var index in array) {
         var element = array[index];
@@ -45,7 +45,7 @@ interface XY {
     y: number
 }
 
-var Board = function (board) {
+function Board(board) {
     var layersString: string[] = board.layers;
     var scannerOffset: XY = board.offset;
     var heroPosition: XY = board.heroPosition;
@@ -71,9 +71,9 @@ var Board = function (board) {
 
     // TODO to add List<Elements> getNear(int numLayer, int x, int y) method
 
-    function isAt(layer, x, y, elements) {
+    function isAt(layer, x, y, elements: Element[] | Element) {
         if (!Array.isArray(elements)) {
-            var arr = [];
+            var arr : Element[] = [];
             arr.push(elements);
             elements = arr;
         }
@@ -103,32 +103,11 @@ var Board = function (board) {
         return array;
     }
 
-    var getWholeBoard = function () {
-        var result = [];
-        for (var x = 0; x < size; x++) {
-            var arr = [];
-            result.push(arr);
-            for (var y = 0; y < size; y++) {
-                var cell = [];
-                cell.push(getAt(LAYER1, x, y).type);
-                cell.push(getAt(LAYER2, x, y).type);
-                cell.push(getAt(LAYER3, x, y).type);
-                removeAllElements(cell, 'NONE');
-                if (cell.length == 0) {
-                    cell.push('NONE');
-                }
 
-                arr.push(cell);
-            }
-        }
-        return result;
-    }
 
-    var get = function (layer, elements) {
+    var get = function (layer, elements: Element[] | Element) {
         if (!Array.isArray(elements)) {
-            var arr = [];
-            arr.push(elements);
-            elements = arr;
+            elements = [elements];
         }
         var result: Point[] = [];
         for (var x = 0; x < size; x++) {
@@ -260,8 +239,11 @@ var Board = function (board) {
             layersString[LAYER2].indexOf(elementsList.ROBOT_FALLING.char) == -1;
     };
 
-    var barriers = null;
-    var barriersMap = null;
+    var barriers: Point[] = [];
+    const barriersMap = Array(size);
+    for (var x = 0; x < size; x++) {
+        barriersMap[x] = new Array(size);
+    };
     var getBarriers = function () {
         if (!!barriers) {
             return barriers;
@@ -287,11 +269,6 @@ var Board = function (board) {
             }
         }
 
-        barriers = [];
-        barriersMap = Array(size);
-        for (var x = 0; x < size; x++) {
-            barriersMap[x] = new Array(size);
-        };
         for (var x = 0; x < size; x++) {
             for (var y = 0; y < size; y++) {
                 var element1 = getAt(LAYER1, x, y);
@@ -334,13 +311,7 @@ var Board = function (board) {
         return getFromArray(x, y, barriersMap, true);
     }
 
-    /**
-     *
-     * @param {Point} from
-     * @param {Point} to
-     * @returns {Point[]}
-     */
-    function getShortestWay(from, to) {
+    function getShortestWay(from : Point, to : Point) : Point[] {
         if (from.getX() == to.getX() && from.getY() == to.getY()) {
             return [from];
         }
@@ -507,11 +478,9 @@ var Board = function (board) {
         var point = to;
         done = false;
         current = mask[point.getX()][point.getY()];
-        /**
-         * @type {Point[]}
-         */
-        var path = [];
-        path.push(point);
+
+        var path : Point[] = [point];
+
         while (!done) {
             comeRound(point.getX(), point.getY(), function (xx, yy) {
                 if (mask[xx][yy] == current - 1) {
@@ -691,7 +660,6 @@ var Board = function (board) {
         layer3: function () {
             return boardAsString(LAYER3)
         },
-        getWholeBoard,
         getBarriers,
         isAnyOfAt,
         isNear,

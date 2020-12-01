@@ -115,7 +115,7 @@ export class CanvasDrawer {
         layers.forEach(layer => {
             for (var x = 0; x < this.tilesCount; x++) {
                 for (var y = 0; y < this.tilesCount; y++) {
-                    const char = layer.charAt((this.tilesCount - 1 - y) * this.tilesCount + x);
+                    const char = layer.charAt((this.tilesCount - 1 - y) * this.tilesCount + x) as keyof typeof elementsMap;
                     if (char !== '-') {
                         this.drawImage(char, x, y, 0, 0);
                     }
