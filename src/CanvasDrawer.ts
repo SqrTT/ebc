@@ -107,10 +107,8 @@ export class CanvasDrawer {
             ctx.clearRect(0, 0, this.el.width, this.el.height);
         }
     }
-    renderBoard(board: ReturnType<typeof Board>) {
-        this.clear();
-
-        const layers = board.getLayers();
+    renderBoard(layers: string[]) {
+        // this.clear();
 
         layers.forEach(layer => {
             for (var x = 0; x < this.tilesCount; x++) {

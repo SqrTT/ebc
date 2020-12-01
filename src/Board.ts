@@ -6,6 +6,8 @@ const LAYER1 = 0;
 const LAYER2 = 1;
 const LAYER3 = 2;
 
+type LAYER_NO = typeof LAYER1 | typeof LAYER2 | typeof LAYER3;
+
 /**
  *
  * @param {number} x
@@ -45,288 +47,337 @@ interface XY {
     y: number
 }
 
-function Board(board) {
-    var layersString: string[] = board.layers;
-    var scannerOffset: XY = board.offset;
-    var heroPosition: XY = board.heroPosition;
-    var levelFinished: boolean = board.levelFinished;
-    var size = Math.sqrt(layersString[LAYER1].length);
-    var xyl = new LengthToXY(size);
+const wallElements = [elementsList.ANGLE_IN_LEFT, elementsList.WALL_FRONT,
+elementsList.ANGLE_IN_RIGHT, elementsList.WALL_RIGHT,
+elementsList.ANGLE_BACK_RIGHT, elementsList.WALL_BACK,
+elementsList.ANGLE_BACK_LEFT, elementsList.WALL_LEFT,
+elementsList.WALL_BACK_ANGLE_LEFT, elementsList.WALL_BACK_ANGLE_RIGHT,
+elementsList.ANGLE_OUT_RIGHT, elementsList.ANGLE_OUT_LEFT,
+elementsList.SPACE];
+const laserMachineElements = [elementsList.LASER_MACHINE_CHARGING_LEFT, elementsList.LASER_MACHINE_CHARGING_RIGHT,
+elementsList.LASER_MACHINE_CHARGING_UP, elementsList.LASER_MACHINE_CHARGING_DOWN,
+elementsList.LASER_MACHINE_READY_LEFT, elementsList.LASER_MACHINE_READY_RIGHT,
+elementsList.LASER_MACHINE_READY_UP, elementsList.LASER_MACHINE_READY_DOWN];
 
-    var parseLayer = function (layer: string) {
-        var map = [] as Element[][];
-        for (var x = 0; x < size; x++) {
-            map[x] = [];
-            for (var y = 0; y < size; y++) {
-                map[x][y] = elementsList.getElement(layer.charAt(xyl.getLength(x, y)))
+class Board {
+    size: number;
+    scannerOffset: XY;
+    heroPosition: XY;
+    layers = [] as Element[][][]
+    layersString: string[]
+    barriersMap: boolean[][]
+    barriers: any;
+    constructor(board) {
+        this.layersString = board.layers;
+        this.scannerOffset = board.offset;
+        this.heroPosition = board.heroPosition;
+        var levelFinished: boolean = board.levelFinished;
+        this.size = Math.sqrt(this.layersString[LAYER1].length);
+        var xyl = new LengthToXY(this.size);
+
+        var parseLayer = (layer: string) => {
+            var map = [] as Element[][];
+            for (var x = 0; x < this.size; x++) {
+                map[x] = [];
+                for (var y = 0; y < this.size; y++) {
+                    map[x][y] = elementsList.getElement(layer.charAt(xyl.getLength(x, y)))
+                }
             }
+            return map;
         }
-        return map;
+
+        for (var index in this.layersString) {
+            this.layers.push(parseLayer(this.layersString[index]));
+        }
+
+        this.barriersMap = Array(this.size);
+        for (var x = 0; x < this.size; x++) {
+            this.barriersMap[x] = new Array(this.size);
+        };
+        this.getBarriers();
+    }
+    getFromArray(x, y, array, def) {
+        if (this.isOutOf(x, y)) {
+            return def;
+        }
+        return array[x][y];
+    }
+    isBarrier(x: number, y: number) {
+        return this.getFromArray(x, y, this.barriersMap, true);
     }
 
-    var layers = [] as Element[][][];
-    for (var index in layersString) {
-        layers.push(parseLayer(layersString[index]));
-    }
+    hasClearPath(from: Point, to: Point) {
+        let count = 100;
+        let pos = from;
+        /**
+         * @type {DirectionList}
+         */
+        const dir = DirectionList.where(from, to);
 
-    // TODO to add List<Elements> getNear(int numLayer, int x, int y) method
-
-    function isAt(layer, x, y, elements: Element[] | Element) {
-        if (!Array.isArray(elements)) {
-            var arr : Element[] = [];
-            arr.push(elements);
-            elements = arr;
-        }
-
-        if (pt(x, y).isBad(size) || getAt(layer, x, y) == null) {
-            return false;
-        }
-
-        for (var e in elements) {
-            var element = elements[e];
-            if (getAt(layer, x, y).char == element.char) {
+        while (count--) {
+            const el = this.getAt(LAYER1, pos.x, pos.y)
+            const el2 = this.getAt(LAYER2, pos.x, pos.y)
+            pos = dir.change(pos);
+            if (pos.isBad(this.size) || el2 === elementsList.BOX) {
+                return false;
+            } else if (pos.equals(to)) {
                 return true;
+            } else if ([elementsList.HOLE, elementsList.FLOOR, elementsList.START, elementsList.ZOMBIE_START, elementsList.GOLD].includes(el)) {
+                continue
+            } else {
+                return false;
             }
         }
         return false;
-    };
-
-    var getAt = function (layer, x, y) {
-        return layers[layer][x][y];
-    };
-
-    var removeAllElements = function (array, element) {
-        var index;
-        while ((index = array.indexOf(element)) !== -1) {
-            array.splice(index, 1);
-        }
-        return array;
     }
-
-
-
-    var get = function (layer, elements: Element[] | Element) {
-        if (!Array.isArray(elements)) {
-            elements = [elements];
-        }
+    getMe() {
+        return pt(this.heroPosition.x, this.heroPosition.y);
+    }
+    isWallAt(x: number, y: number) {
+        return this.getAt(LAYER1, x, y).type == 'WALL';
+    };
+    getOtherHeroes() {
+        var elements = [elementsList.ROBOT_OTHER, elementsList.ROBOT_OTHER_FALLING, elementsList.ROBOT_OTHER_LASER];
+        return this.get(LAYER2, elements)
+            .concat(this.get(LAYER3, [elementsList.ROBOT_OTHER_FLYING]));
+    }
+    get(layer: LAYER_NO, elements: Element[]) {
         var result: Point[] = [];
-        for (var x = 0; x < size; x++) {
-            for (var y = 0; y < size; y++) {
+        for (var x = 0; x < this.size; x++) {
+            for (var y = 0; y < this.size; y++) {
                 for (var e in elements) {
                     var element = elements[e];
-                    if (isAt(layer, x, y, element)) {
+
+                    if (this.getAt(layer, x, y).char == element.char) {
                         result.push(element.direction ? new Point(x, y, element.direction.toString()) : new Point(x, y));
                     }
                 }
             }
         }
         return result;
-    };
+    }
+    isAt(layer: LAYER_NO, x: number, y: number, elements: Element[]) {
+        if (this.isOutOf(x, y) || this.getAt(layer, x, y) == null) {
+            return false;
+        }
 
-    var isAnyOfAt = function (layer, x, y, elements) {
-        for (var index in elements) {
-            var element = elements[index];
-            if (isAt(x, y, layer, element)) {
+        for (var e in elements) {
+            var element = elements[e];
+            if (this.getAt(layer, x, y).char == element.char) {
                 return true;
             }
         }
         return false;
+    }
+    getLaserMachines() {
+        return this.get(LAYER1, laserMachineElements);
+    }
+    getLasers() {
+        var elements = [elementsList.LASER_LEFT, elementsList.LASER_RIGHT,
+        elementsList.LASER_UP, elementsList.LASER_DOWN];
+        return this.get(LAYER2, elements);
     };
+    getWalls() {
+        return this.get(LAYER1, wallElements);
+    }
+    getBoxes() {
+        return this.get(LAYER2, [elementsList.BOX]);
+    }
+    getGold() {
+        return this.get(LAYER1, [elementsList.GOLD]);
+    }
+    getStarts() {
+        return this.get(LAYER1, [elementsList.START]);
+    }
+    getZombies() {
+        return this.get(LAYER2, [elementsList.FEMALE_ZOMBIE, elementsList.MALE_ZOMBIE,
+        elementsList.ZOMBIE_DIE]);
+    }
+    getZombieStart() {
+        return this.get(LAYER1, [elementsList.ZOMBIE_START]);
+    }
+    getPerks() {
+        const elements = [
+            elementsList.UNSTOPPABLE_LASER_PERK,
+            elementsList.DEATH_RAY_PERK,
+            elementsList.UNLIMITED_FIRE_PERK
+        ];
+        return this.get(LAYER1, elements);
+    }
+    getExits() {
+        return this.get(LAYER1, [elementsList.EXIT]);
+    }
+    getHoles() {
+        return this.get(LAYER1, [elementsList.HOLE]);
+    }
+    isMeAlive() {
+        return this.layersString[LAYER2].indexOf(elementsList.ROBOT_LASER.char) == -1 &&
+            this.layersString[LAYER2].indexOf(elementsList.ROBOT_FALLING.char) == -1;
+    }
 
-    var isNear = function (layer, x, y, element) {
-        if (pt(x, y).isBad(size)) {
+    getAt(layer: LAYER_NO, x: number, y: number) {
+        return this.layers[layer][x][y];
+    }
+
+    boardAsString(layer: LAYER_NO) {
+        var result = "";
+        for (var i = 0; i <= this.size - 1; i++) {
+            result += this.layersString[layer].substring(i * this.size, (i + 1) * this.size);
+            result += "\n";
+        }
+        return result;
+    }
+
+    setCharAt(str: string, index: number, replacement: string) {
+        return str.substr(0, index) + replacement + str.substr(index + replacement.length);
+    }
+    maskOverlay(source, mask) {
+        var result = source;
+        for (var i = 0; i < result.length; ++i) {
+            var el = elementsList.getElement(mask[i]);
+            if (elementsList.isWall(el)) {
+                result = this.setCharAt(result, i, el.char);
+            }
+        }
+
+        return result.toString();
+    }
+    toString() {
+        var temp = '0123456789012345678901234567890';
+
+        var result = '';
+
+        var layer1 = this.boardAsString(LAYER1).split('\n').slice(0, -1);
+        var layer2 = this.boardAsString(LAYER2).split('\n').slice(0, -1);
+        var layer3 = this.boardAsString(LAYER3).split('\n').slice(0, -1);
+
+        var numbers = temp.substring(0, layer1.length);
+        var space = ''.padStart(layer1.length - 5);
+        var numbersLine = numbers + '   ' + numbers + '   ' + numbers;
+        var firstPart = ' Layer1 ' + space + ' Layer2' + space + ' Layer3' + '\n  ' + numbersLine;
+
+        for (var i = 0; i < layer1.length; ++i) {
+            var ii = this.size - 1 - i;
+            var index = (ii < 10 ? ' ' : '') + ii;
+            result += index + layer1[i] +
+                ' ' + index + this.maskOverlay(layer2[i], layer1[i]) +
+                ' ' + index + this.maskOverlay(layer3[i], layer1[i]);
+
+            switch (i) {
+                case 0:
+                    result += ' Robots: ' + this.getMe() + ',' + printArray(this.getOtherHeroes());
+                    break;
+                case 1:
+                    result += ' Gold: ' + printArray(this.getGold());
+                    break;
+                case 2:
+                    result += ' Starts: ' + printArray(this.getStarts());
+                    break;
+                case 3:
+                    result += ' Exits: ' + printArray(this.getExits());
+                    break;
+                case 4:
+                    result += ' Boxes: ' + printArray(this.getBoxes());
+                    break;
+                case 5:
+                    result += ' Holes: ' + printArray(this.getHoles());
+                    break;
+                case 6:
+                    result += ' LaserMachine: ' + printArray(this.getLaserMachines());
+                    break;
+                case 7:
+                    result += ' Lasers: ' + printArray(this.getLasers());
+                    break;
+                case 8:
+                    result += ' Zombies: ' + printArray(this.getZombies());
+                    break;
+                case 9:
+                    result += ' Perks: ' + printArray(this.getPerks());
+                    break;
+            }
+
+            if (i != layer1.length - 1) {
+                result += '\n';
+            }
+        }
+
+        return firstPart + '\n' + result + '\n  ' + numbersLine + '\n' + JSON.stringify(this.scannerOffset, null, '  ');
+    }
+    layer1() {
+        return this.boardAsString(LAYER1)
+    }
+    layer2() {
+        return this.boardAsString(LAYER2)
+    }
+    layer3() {
+        return this.boardAsString(LAYER3)
+    }
+    isOutOf(x: number, y: number) {
+        return (x < 0 || y < 0 || x >= this.size || y >= this.size);
+    }
+    getBarriers() {
+        if (this.barriers) {
+            return this.barriers;
+        }
+        this.barriers = [];
+
+        for (var x = 0; x < this.size; x++) {
+            for (var y = 0; y < this.size; y++) {
+                var element1 = this.getAt(LAYER1, x, y);
+                var element2 = this.getAt(LAYER2, x, y);
+
+                this.barriersMap[x][y] = (
+                    element1.type == 'WALL' ||
+                    element1 == elementsList.HOLE ||
+                    element2 == elementsList.BOX ||
+                    laserMachineElements.includes(element1)
+                );
+
+
+                if (this.barriersMap[x][y]) {
+                    this.barriers.push(pt(x, y));
+                }
+            }
+        }
+        return this.barriers;
+    }
+    isAnyOfAt(layer: LAYER_NO, x: number, y: number, elements: Element[]) {
+        return this.isAt(layer, x, y, elements);
+    }
+    isNear(layer: LAYER_NO, x: number, y: number, element: Element) {
+        if (pt(x, y).isBad(this.size)) {
             return false;
         }
-        return isAt(layer, x + 1, y, element) || isAt(layer, x - 1, y, element)
-            || isAt(layer, x, y + 1, element) || isAt(layer, x, y - 1, element);
-    };
-
-    var isBarrierAt = function (x, y) {
-        if (!barriersMap) {
-            getBarriers();
-        }
-        return barriersMap[x][y];
-    };
-
-    var isWallAt = function (x, y) {
-        return getAt(LAYER1, x, y).type == 'WALL';
-    };
-
-    var isZombieAt = function (x, y) {
-        return [elementsList.MALE_ZOMBIE, elementsList.FEMALE_ZOMBIE].includes(getAt(LAYER2, x, y));
-    };
-
-    var countNear = function (layer, x, y, element) {
-        if (pt(x, y).isBad(size)) {
+        return this.isAt(layer, x + 1, y, [element]) || this.isAt(layer, x - 1, y, [element])
+            || this.isAt(layer, x, y + 1, [element]) || this.isAt(layer, x, y - 1, [element]);
+    }
+    isBarrierAt(x, y) {
+        return this.barriersMap[x][y];
+    }
+    countNear(layer: LAYER_NO, x: number, y: number, element) {
+        if (pt(x, y).isBad(this.size)) {
             return 0;
         }
         var count = 0;
-        if (isAt(layer, x - 1, y, element)) count++;
-        if (isAt(layer, x + 1, y, element)) count++;
-        if (isAt(layer, x, y - 1, element)) count++;
-        if (isAt(layer, x, y + 1, element)) count++;
+        if (this.isAt(layer, x - 1, y, element)) count++;
+        if (this.isAt(layer, x + 1, y, element)) count++;
+        if (this.isAt(layer, x, y - 1, element)) count++;
+        if (this.isAt(layer, x, y + 1, element)) count++;
         return count;
-    };
-
-    var getOtherHeroes = function () {
-        var elements = [elementsList.ROBOT_OTHER, elementsList.ROBOT_OTHER_FALLING, elementsList.ROBOT_OTHER_LASER];
-        return get(LAYER2, elements)
-            .concat(get(LAYER3, elementsList.ROBOT_OTHER_FLYING));
-    };
-
-    var getLaserMachines = function () {
-        var elements = [elementsList.LASER_MACHINE_CHARGING_LEFT, elementsList.LASER_MACHINE_CHARGING_RIGHT,
-        elementsList.LASER_MACHINE_CHARGING_UP, elementsList.LASER_MACHINE_CHARGING_DOWN,
-        elementsList.LASER_MACHINE_READY_LEFT, elementsList.LASER_MACHINE_READY_RIGHT,
-        elementsList.LASER_MACHINE_READY_UP, elementsList.LASER_MACHINE_READY_DOWN];
-        return get(LAYER1, elements);
-    };
-
-    var getLasers = function () {
-        var elements = [elementsList.LASER_LEFT, elementsList.LASER_RIGHT,
-        elementsList.LASER_UP, elementsList.LASER_DOWN];
-        return get(LAYER2, elements);
-    };
-
-    var getWalls = function () {
-        var elements = [elementsList.ANGLE_IN_LEFT, elementsList.WALL_FRONT,
-        elementsList.ANGLE_IN_RIGHT, elementsList.WALL_RIGHT,
-        elementsList.ANGLE_BACK_RIGHT, elementsList.WALL_BACK,
-        elementsList.ANGLE_BACK_LEFT, elementsList.WALL_LEFT,
-        elementsList.WALL_BACK_ANGLE_LEFT, elementsList.WALL_BACK_ANGLE_RIGHT,
-        elementsList.ANGLE_OUT_RIGHT, elementsList.ANGLE_OUT_LEFT,
-        elementsList.SPACE];
-        return get(LAYER1, elements);
-    };
-
-    var getBoxes = function () {
-        return get(LAYER2, elementsList.BOX);
-    };
-
-    var getStarts = function () {
-        return get(LAYER1, elementsList.START);
-    };
-
-    var getZombieStart = function () {
-        return get(LAYER1, elementsList.ZOMBIE_START);
-    };
-
-    var getExits = function () {
-        return get(LAYER1, elementsList.EXIT);
-    };
-
-    var getGold = function () {
-        return get(LAYER1, elementsList.GOLD);
-    };
-
-    var getZombies = function () {
-        var elements = [elementsList.FEMALE_ZOMBIE, elementsList.MALE_ZOMBIE,
-        elementsList.ZOMBIE_DIE];
-        return get(LAYER2, elements);
-    };
-
-    var getPerks = function () {
-        var elements = [elementsList.UNSTOPPABLE_LASER_PERK, elementsList.DEATH_RAY_PERK, elementsList.UNLIMITED_FIRE_PERK];
-        return get(LAYER1, elements);
     }
-
-    var getHoles = function () {
-        return get(LAYER1, elementsList.HOLE);
-    };
-
-    var isMeAlive = function () {
-        return layersString[LAYER2].indexOf(elementsList.ROBOT_LASER.char) == -1 &&
-            layersString[LAYER2].indexOf(elementsList.ROBOT_FALLING.char) == -1;
-    };
-
-    var barriers: Point[] = [];
-    const barriersMap = Array(size);
-    for (var x = 0; x < size; x++) {
-        barriersMap[x] = new Array(size);
-    };
-    var getBarriers = function () {
-        if (!!barriers) {
-            return barriers;
-        }
-
-        var isOutOf = function (x, y) {
-            return (x < 0 || y < 0 || x >= size || y >= size);
-        }
-
-        var comeRound = function (x, y, onElement) {
-            var dd = [[0, -1], [1, 0], [-1, 0], [0, 1]];
-            for (var i in dd) {
-                var dx = dd[i][0];
-                var dy = dd[i][1];
-
-                var xx = x + dx;
-                var yy = y + dy;
-                if (isOutOf(xx, yy)) continue;
-
-                var stop = !onElement(xx, yy);
-
-                if (stop) return;
-            }
-        }
-
-        for (var x = 0; x < size; x++) {
-            for (var y = 0; y < size; y++) {
-                var element1 = getAt(LAYER1, x, y);
-                var element2 = getAt(LAYER2, x, y);
-
-                barriersMap[x][y] = (
-                    element1.type == 'WALL' ||
-                    // element1 == Element.HOLE ||
-                    element2 == elementsList.MALE_ZOMBIE ||
-                    element2 == elementsList.FEMALE_ZOMBIE ||
-                    element2 == elementsList.BOX ||
-                    !!element1.direction
-                );
-                if (element2 == elementsList.MALE_ZOMBIE || element2 == elementsList.FEMALE_ZOMBIE) {
-                    barriersMap[x][y] = true;
-                    comeRound(x, y, (nx, ny) => {
-                        if (!isOutOf(nx, ny)) {
-                            barriersMap[nx][ny] = true;
-                            barriers.push(pt(nx, ny));
-                        }
-                    })
-                }
-
-                if (barriersMap[x][y]) {
-                    barriers.push(pt(x, y));
-                }
-            }
-        }
-        return barriers;
-    };
-
-    var getFromArray = function (x, y, array, def) {
-        if (x < 0 || y < 0 || x >= size || y >= size) {
-            return def;
-        }
-        return array[x][y];
-    }
-
-    var isBarrier = function (x, y) {
-        return getFromArray(x, y, barriersMap, true);
-    }
-
-    function getShortestWay(from : Point, to : Point) : Point[] {
+    getShortestWay(from: Point, to: Point): Point[] {
         if (from.getX() == to.getX() && from.getY() == to.getY()) {
             return [from];
         }
-        if (!barriersMap) {
-            getBarriers();
-        }
 
-        var mask = Array(size);
-        for (var x = 0; x < size; x++) {
-            mask[x] = new Array(size);
-            for (var y = 0; y < size; y++) {
-                mask[x][y] = (isWallAt(x, y)) ? -1 : 0;
+        var mask = Array(this.size);
+        for (var x = 0; x < this.size; x++) {
+            mask[x] = new Array(this.size);
+            for (var y = 0; y < this.size; y++) {
+                mask[x][y] = (this.isWallAt(x, y)) ? -1 : 0;
             }
         }
-        for (const laser of getLasers()) {
+        for (const laser of this.getLasers()) {
             var direction = laser.direction;
             if (direction) {
                 const dir = DirectionList.get(direction);
@@ -339,19 +390,19 @@ function Board(board) {
                 }
             }
         }
-        for (const laserMachine of getLaserMachines()) {
+        for (const laserMachine of this.getLaserMachines()) {
             mask[laserMachine.x][laserMachine.y] = -1;
         }
 
         var getMask = function (x, y) {
-            return getFromArray(x, y, mask, -1);
+            return this.getFromArray(x, y, mask, -1);
         }
 
         var current = 1;
         mask[from.getX()][from.getY()] = current;
 
         function isOutOf(x, y) {
-            return (x < 0 || y < 0 || x >= size || y >= size);
+            return (x < 0 || y < 0 || x >= this.size || y >= this.size);
         }
 
         var comeRound = function (x, y, onElement) {
@@ -374,16 +425,16 @@ function Board(board) {
         while (!done) {
             var maskToString = function () {
                 var string = '01234567890123456789\n';
-                for (var y = 0; y < size; y++) {
-                    for (var x = 0; x < size; x++) {
+                for (var y = 0; y < this.size; y++) {
+                    for (var x = 0; x < this.size; x++) {
                         if (mask[x][y] == -1) {
                             var s = '*';
                         } else if (mask[x][y] == 0) {
-                            if (getAt(x, y, LAYER1) == elementsList.HOLE) {
+                            if (this.getAt(x, y, LAYER1) == elementsList.HOLE) {
                                 var s = 'O';
-                            } else if (getAt(x, y, LAYER2) == elementsList.BOX) {
+                            } else if (this.getAt(x, y, LAYER2) == elementsList.BOX) {
                                 var s = 'B';
-                            } else if (getAt(x, y, LAYER1) == elementsList.EXIT) {
+                            } else if (this.getAt(x, y, LAYER1) == elementsList.EXIT) {
                                 var s = 'E';
                             } else {
                                 var s = ' ';
@@ -402,8 +453,8 @@ function Board(board) {
             // s = 8;
             // if (s == -1 || current >= s - 1 && current <= s) maskToString();
 
-            for (var x = 0; x < size; x++) {
-                for (var y = 0; y < size; y++) {
+            for (var x = 0; x < this.size; x++) {
+                for (var y = 0; y < this.size; y++) {
                     if (mask[x][y] != current) continue;
 
                     comeRound(x, y, function (xx, yy) {
@@ -420,22 +471,22 @@ function Board(board) {
                             // путь px/py -> x/y -> xx/yy -> fx/fy
 
                             var can = true;
-                            if (isBarrier(xx, yy) && isBarrier(fx, fy)) {
+                            if (this.isBarrier(xx, yy) && this.isBarrier(fx, fy)) {
                                 can = false;
                             }
-                            if (isBarrier(x, y)) {
+                            if (this.isBarrier(x, y)) {
                                 if (getMask(px, py) == -1) {
                                     can = false;
                                 }
-                                if (isBarrier(xx, yy)) {
+                                if (this.isBarrier(xx, yy)) {
                                     can = false;
                                 }
                             }
-                            if (getAt(LAYER1, xx, yy) === elementsList.HOLE && !isOutOf(fx, fy) && (getAt(LAYER1, fx, fy) === elementsList.HOLE || isBarrier(fx, fy))) {
+                            if (this.getAt(LAYER1, xx, yy) === elementsList.HOLE && !isOutOf(fx, fy) && (this.getAt(LAYER1, fx, fy) === elementsList.HOLE || this.isBarrier(fx, fy))) {
                                 can = false;
                             }
                             comeRound(xx, yy, (zx, zy) => {
-                                if (isZombieAt(zx, zy)) {
+                                if (this.isZombieAt(zx, zy)) {
                                     can = false;
                                 }
                             })
@@ -479,7 +530,7 @@ function Board(board) {
         done = false;
         current = mask[point.getX()][point.getY()];
 
-        var path : Point[] = [point];
+        var path: Point[] = [point];
 
         while (!done) {
             comeRound(point.getX(), point.getY(), function (xx, yy) {
@@ -500,176 +551,12 @@ function Board(board) {
 
         return path.reverse();
     }
-
-    var boardAsString = function (layer) {
-        var result = "";
-        for (var i = 0; i <= size - 1; i++) {
-            result += layersString[layer].substring(i * size, (i + 1) * size);
-            result += "\n";
-        }
-        return result;
-    };
-
-    var getMe = function () {
-        return pt(heroPosition.x, heroPosition.y);
+    isZombieAt(x: number, y: number) {
+        return [elementsList.MALE_ZOMBIE, elementsList.FEMALE_ZOMBIE].includes(this.getAt(LAYER2, x, y));
     }
-
-    var setCharAt = function (str, index, replacement) {
-        return str.substr(0, index) + replacement + str.substr(index + replacement.length);
+    getScannerOffset() {
+        return pt(this.scannerOffset.x, this.scannerOffset.y);
     }
-
-    var maskOverlay = function (source, mask) {
-        var result = source;
-        for (var i = 0; i < result.length; ++i) {
-            var el = elementsList.getElement(mask[i]);
-            if (elementsList.isWall(el)) {
-                result = setCharAt(result, i, el.char);
-            }
-        }
-
-        return result.toString();
-    }
-
-    var toString = function () {
-        var temp = '0123456789012345678901234567890';
-
-        var result = '';
-
-        var layer1 = boardAsString(LAYER1).split('\n').slice(0, -1);
-        var layer2 = boardAsString(LAYER2).split('\n').slice(0, -1);
-        var layer3 = boardAsString(LAYER3).split('\n').slice(0, -1);
-
-        var numbers = temp.substring(0, layer1.length);
-        var space = ''.padStart(layer1.length - 5);
-        var numbersLine = numbers + '   ' + numbers + '   ' + numbers;
-        var firstPart = ' Layer1 ' + space + ' Layer2' + space + ' Layer3' + '\n  ' + numbersLine;
-
-        for (var i = 0; i < layer1.length; ++i) {
-            var ii = size - 1 - i;
-            var index = (ii < 10 ? ' ' : '') + ii;
-            result += index + layer1[i] +
-                ' ' + index + maskOverlay(layer2[i], layer1[i]) +
-                ' ' + index + maskOverlay(layer3[i], layer1[i]);
-
-            switch (i) {
-                case 0:
-                    result += ' Robots: ' + getMe() + ',' + printArray(getOtherHeroes());
-                    break;
-                case 1:
-                    result += ' Gold: ' + printArray(getGold());
-                    break;
-                case 2:
-                    result += ' Starts: ' + printArray(getStarts());
-                    break;
-                case 3:
-                    result += ' Exits: ' + printArray(getExits());
-                    break;
-                case 4:
-                    result += ' Boxes: ' + printArray(getBoxes());
-                    break;
-                case 5:
-                    result += ' Holes: ' + printArray(getHoles());
-                    break;
-                case 6:
-                    result += ' LaserMachine: ' + printArray(getLaserMachines());
-                    break;
-                case 7:
-                    result += ' Lasers: ' + printArray(getLasers());
-                    break;
-                case 8:
-                    result += ' Zombies: ' + printArray(getZombies());
-                    break;
-                case 9:
-                    result += ' Perks: ' + printArray(getPerks());
-                    break;
-            }
-
-            if (i != layer1.length - 1) {
-                result += '\n';
-            }
-        }
-
-        return firstPart + '\n' + result + '\n  ' + numbersLine + '\n' + JSON.stringify(scannerOffset, null, '  ');
-    };
-
-    /**
-     *
-     * @param {Point} from
-     * @param {Point} to
-     */
-    function hasClearPath(from, to) {
-        let count = 100;
-        let pos = from;
-        /**
-         * @type {DirectionList}
-         */
-        const dir = DirectionList.where(from, to);
-
-        while (count--) {
-            const el = getAt(LAYER1, pos.x, pos.y)
-            const el2 = getAt(LAYER2, pos.x, pos.y)
-            pos = dir.change(pos);
-            if (pos.isBad(size) || el2 === elementsList.BOX) {
-                return false;
-            } else if (pos.equals(to)) {
-                return true;
-            } else if ([elementsList.HOLE, elementsList.FLOOR, elementsList.START, elementsList.ZOMBIE_START, elementsList.GOLD].includes(el)) {
-                continue
-            } else {
-                return false;
-            }
-        }
-        return false;
-    }
-
-    return {
-        hasClearPath,
-        size: function () {
-            return size;
-        },
-        getMe: getMe,
-        isLevelFinished: function () {
-            return levelFinished;
-        },
-        getLayers() {
-            return layersString;
-        },
-        getOtherHeroes: getOtherHeroes,
-        getLaserMachines: getLaserMachines,
-        getLasers: getLasers,
-        getWalls: getWalls,
-        getBoxes: getBoxes,
-        getGold: getGold,
-        getStarts: getStarts,
-        getZombies: getZombies,
-        getZombieStart: getZombieStart,
-        getPerks: getPerks,
-        getExits: getExits,
-        getHoles: getHoles,
-        isMeAlive: isMeAlive,
-        isAt: isAt,
-        getAt: getAt,
-        get: get,
-        toString: toString,
-        layer1: function () {
-            return boardAsString(LAYER1)
-        },
-        layer2: function () {
-            return boardAsString(LAYER2)
-        },
-        layer3: function () {
-            return boardAsString(LAYER3)
-        },
-        getBarriers,
-        isAnyOfAt,
-        isNear,
-        isBarrierAt,
-        countNear,
-        getShortestWay,
-        getScannerOffset: function () {
-            return pt(scannerOffset.x, scannerOffset.y);
-        }
-    };
 };
 
 

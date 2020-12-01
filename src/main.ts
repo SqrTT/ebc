@@ -6,6 +6,7 @@ import elementsList from './Element';
 import Board from './Board'
 import DirectionList from './Direction';
 import Command from './Command';
+import Game from './Game';
 import { CanvasDrawer } from './CanvasDrawer';
 
 var tick = 0;
@@ -51,31 +52,20 @@ var log = function (string) {
         printLogOnTextArea(string);
     }
 };
-let fireTick = -Infinity;
 
 const canvasDrawer = new CanvasDrawer('board-canvas');
 
+const currentGame = new Game()
+
 var processBoard = function (boardString: string) {
     var boardJson = JSON.parse(boardString.replace('board=', ''));
-    var board = Board(boardJson);
-    tick++;
 
-    const isDied = boardJson.layers[1].includes('☻');
 
-    if (isDied) {
-        fireTick = -Infinity;
-    }
+    const time = Date.now();
+    const answer = currentGame.tick(boardJson);
+    console.info(`Tick: ${currentGame.currentTick}. Processing time: ${Date.now() - time}`);
 
-    canvasDrawer.renderBoard(board);
-    printBoardOnTextArea("Tick: " + tick + "\n" + board.toString());
-
-    var logMessage = board + "\n\n";
-    var answer = new YourSolver().whatToDo(board).toString();
-    logMessage += "Tick: " + tick + " Answer: " + answer + "\n";
-    logMessage += "---------------------------------------------------------------------------------------------------------\n";
-
-    log(logMessage);
-
+    canvasDrawer.renderBoard(boardJson.layers);
 
     return answer;
 };
@@ -115,122 +105,122 @@ connect();
 
 
 
-/**
- *
- * @param {Point} from
- * @param {Point} to
- */
-function getDistance(from, to) {
-    var a = from.x - to.x;
-    var b = from.y - to.y;
+// /**
+//  *
+//  * @param {Point} from
+//  * @param {Point} to
+//  */
+// function getDistance(from, to) {
+//     var a = from.x - to.x;
+//     var b = from.y - to.y;
 
-    return Math.sqrt(a * a + b * b);
-}
+//     return Math.sqrt(a * a + b * b);
+// }
 
-class YourSolver {
-    /**
-     * @return next robot action
-     */
-    whatToDo(board: ReturnType<typeof Board>) {
-        tick++;
-        var hero = board.getMe();
-        var exit = board.getExits()[0];
-        /**
-         * @type {Point|undefined}
-         */
-        var shortGold;
+// class YourSolver {
+//     /**
+//      * @return next robot action
+//      */
+//     whatToDo(board: Board) {
+//         tick++;
+//         var hero = board.getMe();
+//         var exit = board.getExits()[0];
+//         /**
+//          * @type {Point|undefined}
+//          */
+//         var shortGold;
 
-        const hotAround = board.getLasers().some(laser => {
-            var direction = laser.direction;
-            if (direction) {
-                const dir = DirectionList.get(direction);
-                if (dir) {
-                    var next = dir.change(laser);
-                    return next.equals(hero);
-                }
-            }
-        })
+//         const hotAround = board.getLasers().some(laser => {
+//             var direction = laser.direction;
+//             if (direction) {
+//                 const dir = DirectionList.get(direction);
+//                 if (dir) {
+//                     var next = dir.change(laser);
+//                     return next.equals(hero);
+//                 }
+//             }
+//         })
 
-        if (!hotAround && fireTick + 2 <= tick) {
-            const enemies = board.getOtherHeroes().concat(board.getZombies())
-                .map(goldPt => ({ pos: goldPt, distance: getDistance(hero, goldPt) }))
-                .sort((a, b) => {
-                    return a.distance - b.distance;
-                }).filter(a => board.hasClearPath(hero, a.pos));
+//         if (!hotAround && fireTick + 2 <= tick) {
+//             const enemies = board.getOtherHeroes().concat(board.getZombies())
+//                 .map(goldPt => ({ pos: goldPt, distance: getDistance(hero, goldPt) }))
+//                 .sort((a, b) => {
+//                     return a.distance - b.distance;
+//                 }).filter(a => board.hasClearPath(hero, a.pos));
 
-            const reachable = enemies.find(pt => hero.getX() === pt.pos.getX() || hero.getY() === pt.pos.getY());
+//             const reachable = enemies.find(pt => hero.getX() === pt.pos.getX() || hero.getY() === pt.pos.getY());
 
-            if (reachable) {
+//             if (reachable) {
 
-                const dir = DirectionList.where(hero, reachable.pos);
-                if (dir) {
-                    fireTick = tick;
-                    return Command.fire(dir);
-                }
-            }
-        }
+//                 const dir = DirectionList.where(hero, reachable.pos);
+//                 if (dir) {
+//                     fireTick = tick;
+//                     return Command.fire(dir);
+//                 }
+//             }
+//         }
 
 
-        const distancesToGold = board.getGold().map(goldPt => board.getShortestWay(hero, goldPt)).sort((a, b) => {
-            return a.length - b.length;
-        }).filter(a => a.length && a.length < 4)
+//         const distancesToGold = board.getGold().map(goldPt => board.getShortestWay(hero, goldPt)).sort((a, b) => {
+//             return a.length - b.length;
+//         }).filter(a => a.length && a.length < 4)
 
-        if (exit) {
-            const way = board.getShortestWay(hero, exit);
+//         if (exit) {
+//             const way = board.getShortestWay(hero, exit);
 
-            if (distancesToGold && distancesToGold[0] && distancesToGold[0].length < way.length) {
-                shortGold = distancesToGold[0][1];
-            }
+//             if (distancesToGold && distancesToGold[0] && distancesToGold[0].length < way.length) {
+//                 shortGold = distancesToGold[0][1];
+//             }
 
-            if (way && way[1]) {
-                const nextStep = shortGold || way[1];
-                const dir = DirectionList.where(hero, nextStep);
+//             if (way && way[1]) {
+//                 const nextStep = shortGold || way[1];
+//                 const dir = DirectionList.where(hero, nextStep);
 
-                if (dir) {
-                    if (board.getBoxes().concat(board.getHoles()).some(hole => nextStep.equals(hole))) {
-                        return Command.jump(dir);
-                    }
-                    return Command.go(dir);
-                }
-            }
-        }
+//                 if (dir) {
+//                     if (board.getBoxes().concat(board.getHoles()).some(hole => nextStep.equals(hole))) {
+//                         return Command.jump(dir);
+//                     }
+//                     return Command.go(dir);
+//                 }
+//             }
+//         }
 
-        if (distancesToGold.length) {
-            const nearest = distancesToGold[0];
-            const nextStep = nearest[1];
+//         if (distancesToGold.length) {
+//             const nearest = distancesToGold[0];
+//             const nextStep = nearest[1];
 
-            const dir = DirectionList.where(hero, nextStep);
+//             const dir = DirectionList.where(hero, nextStep);
 
-            if (dir) {
-                if (board.getBoxes().concat(board.getHoles()).some(hole => nextStep.equals(hole))) {
-                    return Command.jump(dir);
-                }
-                return Command.go(dir);
-            }
-        }
+//             if (dir) {
+//                 if (board.getBoxes().concat(board.getHoles()).some(hole => nextStep.equals(hole))) {
+//                     return Command.jump(dir);
+//                 }
+//                 return Command.go(dir);
+//             }
+//         }
 
-        const enemiesPath = board.getOtherHeroes().concat(board.getZombies())
-            .map(goldPt => board.getShortestWay(hero, goldPt)).sort((a, b) => {
-                return a.length - b.length;
-            }).filter(a => a.length > 2)
+//         const enemiesPath = board.getOtherHeroes().concat(board.getZombies())
+//             .map(goldPt => board.getShortestWay(hero, goldPt)).sort((a, b) => {
+//                 return a.length - b.length;
+//             }).filter(a => a.length > 2)
 
-        if (enemiesPath.length) {
-            const nearest = enemiesPath[0];
-            const nextStep = nearest[1];
+//         if (enemiesPath.length) {
+//             const nearest = enemiesPath[0];
+//             const nextStep = nearest[1];
 
-            if (nextStep) {
-                const dir = DirectionList.where(hero, nextStep);
+//             if (nextStep) {
+//                 const dir = DirectionList.where(hero, nextStep);
 
-                if (dir) {
-                    if (board.getBoxes().concat(board.getHoles()).some(hole => nextStep.equals(hole))) {
-                        return Command.jump(dir);
-                    }
-                    return Command.go(dir);
-                }
-            }
+//                 if (dir) {
+//                     if (board.getBoxes().concat(board.getHoles()).some(hole => nextStep.equals(hole))) {
+//                         return Command.jump(dir);
+//                     }
+//                     return Command.go(dir);
+//                 }
+//             }
 
-        }
+//         }
 
-        return Command.die();
-    }
-}
+//         return Command.die();
+//     }
+// }

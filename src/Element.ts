@@ -1,9 +1,9 @@
 import DirectionList from './Direction'
 
-var elements = [] as Element[];
-var elementsTypes = [] as string[];
-var elementsByChar = {};
-var elementsByType = {};
+const elements = [] as Element[];
+const elementsTypes = [] as string[];
+const elementsByChar = {};
+const elementsByType = {} as {[key: string]: Element[]};
 
 export class Element {
     constructor(public readonly char: string, public readonly type: string, public readonly direction?: DirectionList) {
@@ -26,6 +26,7 @@ function el(char: string, type: string, direction?: DirectionList) {
     return new Element(char, type, direction);
 }
 const elementsList = {
+    UNKNOWN: el('#', 'UNKNOWN'),
     EMPTY: el('-', 'NONE'),
     FLOOR: el('.', 'NONE'),
 
@@ -115,7 +116,7 @@ const elementsList = {
         return result;
     },
 
-    getElementsOfType: function (type) {
+    getElementsOfType: function (type: string) {
         return elementsByType[type];
     },
 
