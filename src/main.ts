@@ -173,7 +173,7 @@ class YourSolver {
 
         const distancesToGold = board.getGold().map(goldPt => board.getShortestWay(hero, goldPt)).sort((a, b) => {
             return a.length - b.length;
-        }).filter(a => a.length)
+        }).filter(a => a.length && a.length < 4)
 
         if (exit) {
             const way = board.getShortestWay(hero, exit);
