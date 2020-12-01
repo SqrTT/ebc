@@ -646,6 +646,9 @@ var Board = function (board) {
         isLevelFinished: function () {
             return levelFinished;
         },
+        getLayers() {
+            return layersString;
+        },
         getOtherHeroes: getOtherHeroes,
         getLaserMachines: getLaserMachines,
         getLasers: getLasers,
