@@ -1,6 +1,6 @@
 import Board from './Board';
 import Command from './Command';
-import DirectionList from './Direction';
+import DirectionList, { Direction } from './Direction';
 import elementsList from './Element';
 import ElementsList, { Element } from './Element';
 import Point from './Point';
@@ -28,7 +28,7 @@ const DEFAULT_OPTIONS = {
     perkAvailable: 10,
     parkEffect: 10,
     rayLength: 10,
-    gunReload: 3
+    gunReload: 4
 }
 
 interface ServerState {
@@ -55,13 +55,16 @@ class Game {
     state: GameState;
     readonly options: typeof DEFAULT_OPTIONS;
     distances?: number[][]
+    firedAtTick: number;
     constructor(options?: typeof DEFAULT_OPTIONS) {
         this.options = { ...DEFAULT_OPTIONS, ...options }
         this.state = GameState.WAIT;
         this.currentTick = 0;
+        this.firedAtTick = -Infinity;
     }
     reset() {
         this.currentTick = 0;
+        this.firedAtTick = -Infinity;
     }
     tick(boardJson: ServerState) {
         const playerEl = boardJson.layers[1].split('').concat(boardJson.layers[2].split('')).find(char => myRobotElements.includes(char))
@@ -92,31 +95,37 @@ class Game {
         const me = board.getMe();
         const scores = makeArray(board.size, board.size, 0);
 
+        const haveAmmo = this.currentTick >= this.firedAtTick + this.options.gunReload;
+
         for (const wall of board.getWalls()) {
-            scores[wall.x][wall.y] =- 1e9;
+            scores[wall.x][wall.y] = - 1e9;
         }
 
         for (const exit of board.getExits()) {
-            scores[exit.x][exit.y] =+ this.options.roundWin;
+            scores[exit.x][exit.y] = + this.options.roundWin;
         }
         for (const gold of board.getGold()) {
-            scores[gold.x][gold.y] =+ this.options.goldValue;
+            scores[gold.x][gold.y] = + this.options.goldValue;
         }
-        for (const zombie of board.getZombies()) {
-            for (const [blastX, blastY] of board.blasts(zombie.x, zombie.y)) {
-                scores[blastX][blastY] =+ this.options.zombieKill;
-            };
+
+        if (haveAmmo) {
+            for (const zombie of board.getZombies()) {
+                for (const [blastX, blastY] of board.blasts(zombie.x, zombie.y)) {
+                    scores[blastX][blastY] = + this.options.zombieKill;
+                };
+            }
+            for (const players of board.getOtherHeroes()) {
+                scores[players.x][players.y] = + this.options.playerKill;
+            }
         }
-        for (const players of board.getOtherHeroes()) {
-            scores[players.x][players.y] =+ this.options.playerKill;
-        }
+
         for (const perk of board.getPerks()) {
-            scores[perk.x][perk.y] =+ 3;
+            scores[perk.x][perk.y] = + 3;
         }
 
         let best = -1;
-        let tx : number | undefined;
-        let ty : number | undefined;
+        let tx: number | undefined;
+        let ty: number | undefined;
         for (var x = 0; x < board.size; x++) {
             for (var y = 0; y < board.size; y++) {
                 if (scores[x][y] < 0) {
@@ -135,34 +144,32 @@ class Game {
                 }
             }
         }
-        var ptx, pty;
+
         if (best < 0) {
             return Command.die();
         } else if (tx && ty) {
+            // var ptx: number, pty: number;
+            var pDir: Direction | undefined;
+
             let [Tx, Ty] = [tx, ty];
-            [ptx, pty] = [tx, ty];
+            //[ptx, pty] = [tx, ty];
             while (tx != me.x || ty != me.y) {  // Looking for next point on the way to target
-                [ptx, pty] = [tx, ty];
-                [tx, ty] = parent[tx][ty];
+               // [ptx, pty] = [tx, ty];
+                [tx, ty,, pDir] = parent[tx][ty];
             }
-        }
-        var nextDir = DirectionList.where(me, new Point(ptx, pty));
-        console.log(`tx ${tx} ty ${ty} sc ${best} ${nextDir}`);
 
-        this.distances = distances;
 
-        if (nextDir) {
-            const nextPoint = nextDir.change(me);
-            if (
-                board.getAt(1, nextPoint.x, nextPoint.y) === elementsList.BOX ||
-                ['LASER_MACHINE', 'LASER_MACHINE_READY', 'HOLE'].includes(board.getAt(0, nextPoint.x, nextPoint.y).type)
-            ) {
-                return Command.jump(nextDir);
+            console.log(`tx ${tx} ty ${ty} sc ${best} ${pDir}`);
+
+            this.distances = distances;
+
+            if (pDir) {
+
+                return pDir;
             }
-            return nextDir;
-        }
 
-        return Command.doNothing();
+            return Command.doNothing();
+        }
     }
 }
 

@@ -34,14 +34,14 @@ function makeArray<T>(x: number, y: number, fillValue: T) {
 
 const MOVE_DIRECTIONS = [
     DirectionList.DOWN,
-    DirectionList.DOWN_JUMP,
     DirectionList.UP,
-    DirectionList.UP_JUMP,
     DirectionList.LEFT,
-    DirectionList.LEFT_JUMP,
     DirectionList.RIGHT,
+    DirectionList.STOP,
+    DirectionList.LEFT_JUMP,
+    DirectionList.UP_JUMP,
+    DirectionList.DOWN_JUMP,
     DirectionList.RIGHT_JUMP,
-    DirectionList.STOP
 ]
 
 /**
@@ -373,9 +373,9 @@ class Board {
     isOutOf(x: number, y: number) {
         return (x < 0 || y < 0 || x >= this.size || y >= this.size);
     }
-    bfs() {
+    bfs(fromX = this.getMe().x, fromY = this.getMe().y) {
         const distances = makeArray(this.size, this.size, +Infinity);
-        const parent = makeArray<[number, number, number] | null>(this.size, this.size, null);
+        const parent = makeArray<[number, number, number, Direction] | null>(this.size, this.size, null);
         const penalty = makeArray(this.size, this.size, 0);
 
 
@@ -386,10 +386,9 @@ class Board {
                 }
             }
         }
-        const me = this.getMe();
 
-        distances[me.x][me.y] = 0;
-        const Q = [[me.x, me.y, 0]];
+        distances[fromX][fromY] = 0;
+        const Q = [[fromX, fromY, 0, DirectionList.STOP]] as [number, number, number, Direction][];
         let length = 0;
 
         while (length < Q.length) {
@@ -401,8 +400,8 @@ class Board {
                 var tt = time + dir.cost;
                 if (!this.isOutOf(xx, yy) && distances[xx][yy] > distances[posX][posY] + dir.cost + penalty[xx][yy]) {
                     distances[xx][yy] = distances[posX][posY] + dir.cost + penalty[xx][yy];
-                    parent[xx][yy] = [posX, posY, time]
-                    Q.push([xx, yy, tt]);
+                    parent[xx][yy] = [posX, posY, time, dir]
+                    Q.push([xx, yy, tt, dir]);
                 }
             }
         }
