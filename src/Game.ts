@@ -36,7 +36,7 @@ function getDistance(from: Point, to: Point) {
 
     return Math.sqrt(a * a + b * b);
 }
-interface ServerState {
+export interface ServerState {
     heroPosition: {
         x: number,
         y: number
@@ -132,31 +132,35 @@ class Game {
         }
 
         for (const wall of board.getWalls()) {
-            scores[wall.x][wall.y] = - 1e9;
+            scores[wall.y][wall.x] = - 1e9;
         }
 
         for (const exit of board.getExits()) {
-            scores[exit.x][exit.y] += this.options.roundWin;
+            scores[exit.y][exit.x] += this.options.roundWin;
         }
         for (const gold of board.getGold()) {
-            scores[gold.x][gold.y] += this.options.goldValue;
+            scores[gold.y][gold.x] += this.options.goldValue;
+        }
+
+        for (const unvisited of board.getUnvisited()) {
+            scores[unvisited.y][unvisited.x] += 30;
         }
 
         if (haveAmmo) {
             for (const zombie of board.getLiveZombies()) {
                 for (const [blastX, blastY] of board.blasts(zombie.x, zombie.y)) {
-                    scores[blastX][blastY] += this.options.zombieKill;
+                    scores[blastY][blastX] += this.options.zombieKill;
                 };
             }
             for (const players of board.getOtherLiveHeroes()) {
                 for (const [blastX, blastY] of board.blasts(players.x, players.y)) {
-                    scores[blastX][blastY] +=  this.options.playerKill;
+                    scores[blastY][blastX] +=  this.options.playerKill;
                 };
             }
         }
 
         for (const perk of board.getPerks()) {
-            scores[perk.x][perk.y] += 3;
+            scores[perk.y][perk.x] += 3;
         }
 
         const { distances, parent } = board.bfs();
@@ -166,14 +170,14 @@ class Game {
         let ty: number | undefined;
         for (var x = 0; x < board.size; x++) {
             for (var y = 0; y < board.size; y++) {
-                if (scores[x][y] < 0) {
+                if (scores[y][x] < 0) {
                     continue;
                 }
-                if (distances[x][y] < 0 || distances[x][y] > 1e8) {
+                if (distances[y][x] < 0 || distances[y][x] > 1e8) {
                     continue
                 }
-                var sc = scores[x][y];
-                var cur = sc / (distances[x][y] + 1);
+                var sc = scores[y][x];
+                var cur = sc / (distances[y][x] + 1);
                 if (cur > best) {
                     best = cur
                     tx = x
@@ -193,7 +197,7 @@ class Game {
             //[ptx, pty] = [tx, ty];
             while (tx != me.x || ty != me.y) {  // Looking for next point on the way to target
                 // [ptx, pty] = [tx, ty];
-                [tx, ty, , pDir] = parent[tx][ty];
+                [tx, ty, , pDir] = parent[ty][tx];
             }
 
             console.log(`tx ${tx} ty ${ty} sc ${best} ${pDir}`);

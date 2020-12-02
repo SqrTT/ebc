@@ -98,8 +98,8 @@ export class CanvasDrawer {
     renderNumbers(distances: number[][]) {
         for (var x = 0; x < this.tilesCount; x++) {
             for (var y = 0; y < this.tilesCount; y++) {
-                if (distances[x][y] && distances[x][y] > -1e4 && distances[x][y] < 1e5) {
-                    this.drawText(x, y, (distances[x][y]).toFixed(2).replace('.00', ''));
+                if (distances[y][x] && distances[y][x] > -1e4 && distances[y][x] < 1e5) {
+                    this.drawText(x, y, (distances[y][x]).toFixed(2).replace('.00', ''));
                 }
             }
         }
@@ -112,7 +112,7 @@ export class CanvasDrawer {
                 text,
                 '10px',
                 x * this.tileSize + (this.tileSize / String(text).length) - this.tileSize / 2,
-                (this.tilesCount - 1 - y) * this.tileSize + this.tileSize / 2
+                (y) * this.tileSize + this.tileSize / 2
             );
         }
     }
@@ -128,20 +128,20 @@ export class CanvasDrawer {
             ctx.drawImage(
                 image,
                 x * this.tileSize + dx,
-                (this.tilesCount - 1 - y) * this.tileSize + dy - (xSize ? this.tileSize : 0),
+                (y) * this.tileSize + dy - (xSize ? this.tileSize : 0),
                 this.tileSize,
                 xSize ? this.tileSize * 2 : this.tileSize
             );
         }
     }
-    constructor(elementID: string) {
+    constructor(elementID: string, tilesCount = 20) {
         const el = document.getElementById(elementID) as HTMLCanvasElement;
         if (!el) {
             throw new Error('No canvas element found');
         }
         this.el = el;
         this.tileSize = 30;
-        this.tilesCount = 20;
+        this.tilesCount = tilesCount;
         this.images = new Map<keyof typeof elementsMap, CanvasImageSource>();
         el.style.width = this.tileSize * this.tilesCount + 'px';
         el.style.height = this.tileSize * this.tilesCount + 'px';
@@ -163,7 +163,7 @@ export class CanvasDrawer {
         layers.forEach(layer => {
             for (var x = 0; x < this.tilesCount; x++) {
                 for (var y = 0; y < this.tilesCount; y++) {
-                    const char = layer.charAt((this.tilesCount - 1 - y) * this.tilesCount + x) as keyof typeof elementsMap;
+                    const char = layer.charAt((y) * this.tilesCount + x) as keyof typeof elementsMap;
                     if (char !== '-') {
                         this.drawImage(char, x, y, 0, 0);
                     }
@@ -173,9 +173,9 @@ export class CanvasDrawer {
 
     }
     renderStaticBorders(borders: boolean[][]) {
-        for (var x = 0; x < this.tilesCount; x++) {
-            for (var y = 0; y < this.tilesCount; y++) {
-                if (borders[x][y]) {
+        for (var y = 0; y < this.tilesCount; y++) {
+            for (var x = 0; x < this.tilesCount; x++) {
+                if (borders[y][x]) {
                     this.drawRec(x, y);
                 }
             }
@@ -189,7 +189,7 @@ export class CanvasDrawer {
             ctx.save();
             ctx.fillStyle = color;
             ctx.globalAlpha = 0.4;
-            ctx.fillRect(x * this.tileSize, (this.tilesCount - 1 - y) * this.tileSize, this.tileSize, this.tileSize);
+            ctx.fillRect(x * this.tileSize, (y) * this.tileSize, this.tileSize, this.tileSize);
             ctx.globalAlpha = 1.0;
 
             /// restore original state

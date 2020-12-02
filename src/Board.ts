@@ -63,7 +63,7 @@ var printArray = function (array: Element[] | Point[]) {
 };
 
 
-class LengthToXY {
+export class LengthToXY {
     constructor(public readonly boardSize: number) { }
 
     getXY(length) {
@@ -74,7 +74,7 @@ class LengthToXY {
     }
 
     getLength(x, y) {
-        return (this.boardSize - 1 - y) * this.boardSize + x;
+        return (y) * this.boardSize + x;
     }
 };
 
@@ -96,7 +96,7 @@ elementsList.LASER_MACHINE_READY_LEFT, elementsList.LASER_MACHINE_READY_RIGHT,
 elementsList.LASER_MACHINE_READY_UP, elementsList.LASER_MACHINE_READY_DOWN];
 
 const readyMachinesAndLasers = [elementsList.LASER_MACHINE_READY_LEFT, elementsList.LASER_MACHINE_READY_RIGHT,
-    elementsList.LASER_MACHINE_READY_UP, elementsList.LASER_MACHINE_READY_DOWN];
+elementsList.LASER_MACHINE_READY_UP, elementsList.LASER_MACHINE_READY_DOWN];
 
 const lasersElements = [elementsList.LASER_LEFT, elementsList.LASER_RIGHT,
 elementsList.LASER_UP, elementsList.LASER_DOWN];
@@ -118,10 +118,10 @@ class Board {
 
         var parseLayer = (layer: string) => {
             var map = [] as Element[][];
-            for (var x = 0; x < this.size; x++) {
-                map[x] = [];
-                for (var y = 0; y < this.size; y++) {
-                    map[x][y] = elementsList.getElement(layer.charAt(xyl.getLength(x, y)))
+            for (var y = 0; y < this.size; y++) {
+                map[y] = [];
+                for (var x = 0; x < this.size; x++) {
+                    map[y][x] = elementsList.getElement(layer.charAt(xyl.getLength(x, y)))
                 }
             }
             return map;
@@ -141,7 +141,7 @@ class Board {
         if (this.isOutOf(x, y)) {
             return def;
         }
-        return array[x][y];
+        return array[y][x];
     }
     isBarrier(x: number, y: number) {
         return this.getFromArray(x, y, this.barriersMap, true);
@@ -278,6 +278,9 @@ class Board {
         ];
         return this.get(LAYER1, elements);
     }
+    getUnvisited() {
+        return this.get(LAYER1, [elementsList.UNKNOWN]);
+    }
     getExits() {
         return this.get(LAYER1, [elementsList.EXIT]);
     }
@@ -290,7 +293,7 @@ class Board {
     }
 
     getAt(layer: LAYER_NO, x: number, y: number) {
-        return this.layers[layer][x][y];
+        return this.layers[layer][y][x];
     }
 
     boardAsString(layer: LAYER_NO) {
@@ -397,8 +400,8 @@ class Board {
 
         for (var x = 0; x < this.size; x++) {
             for (var y = 0; y < this.size; y++) {
-                if (this.barriersMap[x][y]) {
-                    penalty[x][y] = 10e9;
+                if (this.barriersMap[y][x]) {
+                    penalty[y][x] = 10e9;
                 }
             }
         }
@@ -407,44 +410,46 @@ class Board {
             if (dir) {
                 const newL = dir.change(laser);
                 if (!newL.isBad(this.size)) {
-                    penalty[newL.x][newL.y] += 1;
+                    penalty[newL.y][newL.x] += 1;
                 }
             }
         }
         for (const npc of this.getOtherLiveHeroes().concat(this.getLiveZombies())) {
             for (const [x, y] of this.blasts(npc.x, npc.y, 2)) {
-                penalty[x][y] += 10;
-
+                penalty[y][x] += 10;
             }
         }
 
-        distances[fromX][fromY] = 0;
+        distances[fromY][fromX] = 0;
         const Q = [[fromX, fromY, 0, DirectionList.STOP]] as [number, number, number, Direction][];
         let length = 0;
 
         while (length < Q.length) {
             var [posX, posY, time] = Q[length];
             length++;
-            for (var dir of MOVE_DIRECTIONS) {
-                var xx = dir.changeX(posX);
-                var yy = dir.changeY(posY);
-                if (this.isOutOf(xx, yy)) {
-                    continue;
-                }
-                var ll = this.getAt(LAYER2, xx, yy);
-                if (lasersElements.includes(ll)) {
-                    var lDir = ll.direction;
-                    if (lDir) {
-                        if (lDir.changeX(xx) === posX && lDir.changeY(yy) === posY) {
-                            continue;
+            if (this.getAt(LAYER1, posX, posY).type !== 'UNKNOWN') {
+
+                for (var dir of MOVE_DIRECTIONS) {
+                    var xx = dir.changeX(posX);
+                    var yy = dir.changeY(posY);
+                    if (this.isOutOf(xx, yy)) {
+                        continue;
+                    }
+                    var ll = this.getAt(LAYER2, xx, yy);
+                    if (lasersElements.includes(ll)) {
+                        var lDir = ll.direction;
+                        if (lDir) {
+                            if (lDir.changeX(xx) === posX && lDir.changeY(yy) === posY) {
+                                continue;
+                            }
                         }
                     }
-                }
-                var tt = time + dir.cost;
-                if (distances[xx][yy] > distances[posX][posY] + dir.cost + penalty[xx][yy]) {
-                    distances[xx][yy] = distances[posX][posY] + dir.cost + penalty[xx][yy];
-                    parent[xx][yy] = [posX, posY, time, dir]
-                    Q.push([xx, yy, tt, dir]);
+                    var tt = time + dir.cost;
+                    if (distances[yy][xx] > distances[posY][posX] + dir.cost + penalty[yy][xx]) {
+                        distances[yy][xx] = distances[posY][posX] + dir.cost + penalty[yy][xx];
+                        parent[yy][xx] = [posX, posY, time, dir]
+                        Q.push([xx, yy, tt, dir]);
+                    }
                 }
             }
         }
@@ -463,7 +468,7 @@ class Board {
                 var element1 = this.getAt(LAYER1, x, y);
                 var element2 = this.getAt(LAYER2, x, y);
 
-                this.barriersMap[x][y] = (
+                this.barriersMap[y][x] = (
                     element1.type == 'WALL' ||
                     element1 == elementsList.HOLE ||
                     element2 == elementsList.BOX ||
@@ -471,7 +476,7 @@ class Board {
                 );
 
 
-                if (this.barriersMap[x][y]) {
+                if (this.barriersMap[y][x]) {
                     this.barriers.push(pt(x, y));
                 }
             }
@@ -508,9 +513,9 @@ class Board {
         }
 
         var mask = Array(this.size);
-        for (var x = 0; x < this.size; x++) {
-            mask[x] = new Array(this.size);
-            for (var y = 0; y < this.size; y++) {
+        for (var y = 0; y < this.size; y++) {
+            mask[y] = new Array(this.size);
+            for (var x = 0; x < this.size; x++) {
                 mask[x][y] = (this.isWallAt(x, y)) ? -1 : 0;
             }
         }
@@ -522,13 +527,13 @@ class Board {
                 if (dir) {
                     var next = dir.change(laser);
                     if (!isOutOf(next.x, next.y)) {
-                        mask[next.x][next.y] = -1;
+                        mask[next.y][next.x] = -1;
                     }
                 }
             }
         }
         for (const laserMachine of this.getLaserMachines()) {
-            mask[laserMachine.x][laserMachine.y] = -1;
+            mask[laserMachine.y][laserMachine.x] = -1;
         }
 
         var getMask = function (x, y) {
@@ -536,7 +541,7 @@ class Board {
         }
 
         var current = 1;
-        mask[from.getX()][from.getY()] = current;
+        mask[from.getY()][from.getX()] = current;
 
         function isOutOf(x, y) {
             return (x < 0 || y < 0 || x >= this.size || y >= this.size);
@@ -564,9 +569,9 @@ class Board {
                 var string = '01234567890123456789\n';
                 for (var y = 0; y < this.size; y++) {
                     for (var x = 0; x < this.size; x++) {
-                        if (mask[x][y] == -1) {
+                        if (mask[y][x] == -1) {
                             var s = '*';
-                        } else if (mask[x][y] == 0) {
+                        } else if (mask[y][x] == 0) {
                             if (this.getAt(x, y, LAYER1) == elementsList.HOLE) {
                                 var s = 'O';
                             } else if (this.getAt(x, y, LAYER2) == elementsList.BOX) {
@@ -577,7 +582,7 @@ class Board {
                                 var s = ' ';
                             }
                         } else {
-                            var s = '' + mask[x][y];
+                            var s = '' + mask[y][x];
                         }
                         if (s.length == 2) s = s[1];
                         string += s;
@@ -592,7 +597,7 @@ class Board {
 
             for (var x = 0; x < this.size; x++) {
                 for (var y = 0; y < this.size; y++) {
-                    if (mask[x][y] != current) continue;
+                    if (mask[y][x] != current) continue;
 
                     comeRound(x, y, function (xx, yy) {
                         if (getMask(xx, yy) == 0) {
@@ -644,7 +649,7 @@ class Board {
                             // }
 
                             if (can) {
-                                mask[xx][yy] = current + 1;
+                                mask[yy][xx] = current + 1;
                                 if (xx == to.getX() && yy == to.getY()) {
                                     done = true;
                                 }
@@ -665,13 +670,13 @@ class Board {
         }
         var point = to;
         done = false;
-        current = mask[point.getX()][point.getY()];
+        current = mask[point.getY()][point.getX()];
 
         var path: Point[] = [point];
 
         while (!done) {
             comeRound(point.getX(), point.getY(), function (xx, yy) {
-                if (mask[xx][yy] == current - 1) {
+                if (mask[yy][xx] == current - 1) {
                     point = pt(xx, yy);
                     current--;
 
@@ -690,9 +695,6 @@ class Board {
     }
     isZombieAt(x: number, y: number) {
         return [elementsList.MALE_ZOMBIE, elementsList.FEMALE_ZOMBIE].includes(this.getAt(LAYER2, x, y));
-    }
-    getScannerOffset() {
-        return pt(this.scannerOffset.x, this.scannerOffset.y);
     }
 };
 

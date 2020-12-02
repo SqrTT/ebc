@@ -22,7 +22,7 @@ export class Element {
     }
 }
 
-function el(char: string, type: string, direction?: DirectionList) {
+function el(char: string, type: string, direction?: Direction) {
     return new Element(char, type, direction);
 }
 const elementsList = {
