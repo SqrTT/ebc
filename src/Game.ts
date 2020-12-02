@@ -30,7 +30,12 @@ const DEFAULT_OPTIONS = {
     rayLength: 10,
     gunReload: 4
 }
+function getDistance(from: Point, to: Point) {
+    var a = from.x - to.x;
+    var b = from.y - to.y;
 
+    return Math.sqrt(a * a + b * b);
+}
 interface ServerState {
     heroPosition: {
         x: number,
@@ -91,37 +96,70 @@ class Game {
         }
     }
     move(board: Board) {
-        const { distances, parent } = board.bfs();
         const me = board.getMe();
         const scores = makeArray(board.size, board.size, 0);
 
         const haveAmmo = this.currentTick >= this.firedAtTick + this.options.gunReload;
+
+        const isSafe = !board.getLasers().some(laser => {
+            var direction = laser.direction;
+            if (direction) {
+                const dir = DirectionList.get(direction);
+                if (dir) {
+                    var next = dir.change(laser);
+                    return next.equals(me);
+                }
+            }
+        })
+
+        if (isSafe && haveAmmo) {
+            const enemies = board.getOtherHeroes().concat(board.getZombies())
+                .map(goldPt => ({ pos: goldPt, distance: getDistance(me, goldPt) }))
+                .sort((a, b) => {
+                    return a.distance - b.distance;
+                }).filter(a => board.hasClearPath(me, a.pos));
+
+            const reachable = enemies.find(pt => me.getX() === pt.pos.getX() || me.getY() === pt.pos.getY());
+
+            if (reachable) {
+
+                const dir = DirectionList.where(me, reachable.pos);
+                if (dir) {
+                    this.firedAtTick = this.currentTick;
+                    return Command.fire(dir);
+                }
+            }
+        }
 
         for (const wall of board.getWalls()) {
             scores[wall.x][wall.y] = - 1e9;
         }
 
         for (const exit of board.getExits()) {
-            scores[exit.x][exit.y] = + this.options.roundWin;
+            scores[exit.x][exit.y] += this.options.roundWin;
         }
         for (const gold of board.getGold()) {
-            scores[gold.x][gold.y] = + this.options.goldValue;
+            scores[gold.x][gold.y] += this.options.goldValue;
         }
 
         if (haveAmmo) {
             for (const zombie of board.getZombies()) {
                 for (const [blastX, blastY] of board.blasts(zombie.x, zombie.y)) {
-                    scores[blastX][blastY] = + this.options.zombieKill;
+                    scores[blastX][blastY] += this.options.zombieKill;
                 };
             }
             for (const players of board.getOtherHeroes()) {
-                scores[players.x][players.y] = + this.options.playerKill;
+                for (const [blastX, blastY] of board.blasts(players.x, players.y)) {
+                    scores[blastX][blastY] +=  this.options.playerKill;
+                };
             }
         }
 
         for (const perk of board.getPerks()) {
-            scores[perk.x][perk.y] = + 3;
+            scores[perk.x][perk.y] += 3;
         }
+
+        const { distances, parent } = board.bfs();
 
         let best = -1;
         let tx: number | undefined;
@@ -154,10 +192,9 @@ class Game {
             let [Tx, Ty] = [tx, ty];
             //[ptx, pty] = [tx, ty];
             while (tx != me.x || ty != me.y) {  // Looking for next point on the way to target
-               // [ptx, pty] = [tx, ty];
-                [tx, ty,, pDir] = parent[tx][ty];
+                // [ptx, pty] = [tx, ty];
+                [tx, ty, , pDir] = parent[tx][ty];
             }
-
 
             console.log(`tx ${tx} ty ${ty} sc ${best} ${pDir}`);
 

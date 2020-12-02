@@ -98,7 +98,7 @@ export class CanvasDrawer {
     renderNumbers(distances: number[][]) {
         for (var x = 0; x < this.tilesCount; x++) {
             for (var y = 0; y < this.tilesCount; y++) {
-                if (distances[x][y] && distances[x][y] < 100) {
+                if (distances[x][y] && distances[x][y] > -1e4 && distances[x][y] < 1e5) {
                     this.drawText(x, y, distances[x][y]);
                 }
             }

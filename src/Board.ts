@@ -95,6 +95,11 @@ elementsList.LASER_MACHINE_CHARGING_UP, elementsList.LASER_MACHINE_CHARGING_DOWN
 elementsList.LASER_MACHINE_READY_LEFT, elementsList.LASER_MACHINE_READY_RIGHT,
 elementsList.LASER_MACHINE_READY_UP, elementsList.LASER_MACHINE_READY_DOWN];
 
+const readyMachinesAndLasers = [elementsList.LASER_MACHINE_READY_LEFT, elementsList.LASER_MACHINE_READY_RIGHT,
+    elementsList.LASER_MACHINE_READY_UP, elementsList.LASER_MACHINE_READY_DOWN];
+
+const lasersElements = [elementsList.LASER_LEFT, elementsList.LASER_RIGHT,
+elementsList.LASER_UP, elementsList.LASER_DOWN];
 class Board {
     size: number;
     scannerOffset: XY;
@@ -173,7 +178,7 @@ class Board {
         return this.getAt(LAYER1, x, y).type == 'WALL';
     }
 
-    blasts(sx, sy, blast = 4, br = true) {
+    blasts(sx, sy, blast = 4) {
         const result: number[][] = [];
         for (const [search_range, is_x] of [
             [range(sx, sx + blast), true] as [number[], boolean],
@@ -184,9 +189,11 @@ class Board {
 
             for (const i of search_range) {
                 const [x, y] = is_x ? [i, sy] : [sx, i];
-                const el1 = this.getAt(0, x, y);
+                if (x === sx && y === sy) {
+                    continue;
+                }
 
-                if (this.isOutOf(x, y) || elementsList.isWall(el1) || this.getAt(1, x, y) === elementsList.BOX) {
+                if (this.isOutOf(x, y) || elementsList.isWall(this.getAt(0, x, y)) || this.getAt(1, x, y) === elementsList.BOX) {
                     break
                 }
                 result.push([x, y]);
@@ -231,10 +238,11 @@ class Board {
         return this.get(LAYER1, laserMachineElements);
     }
     getLasers() {
-        var elements = [elementsList.LASER_LEFT, elementsList.LASER_RIGHT,
-        elementsList.LASER_UP, elementsList.LASER_DOWN];
-        return this.get(LAYER2, elements);
-    };
+        return this.get(LAYER2, lasersElements);
+    }
+    getLasersAndReadyMachines() {
+        return this.getLasers().concat(this.get(LAYER1, readyMachinesAndLasers));
+    }
     getWalls() {
         return this.get(LAYER1, wallElements);
     }
@@ -384,6 +392,21 @@ class Board {
                 if (this.barriersMap[x][y]) {
                     penalty[x][y] = 10e9;
                 }
+            }
+        }
+        for (const laser of this.getLasersAndReadyMachines()) {
+            const dir = laser.direction && DirectionList.get(laser.direction);
+            if (dir) {
+                const newL = dir.change(laser);
+                if (!newL.isBad(this.size)) {
+                    penalty[newL.x][newL.y] += 1;
+                }
+            }
+        }
+        for (const npc of this.getOtherHeroes().concat(this.getZombies())) {
+            for (const [x, y] of this.blasts(npc.x, npc.y, 2)) {
+                penalty[x][y] += 10;
+
             }
         }
 
