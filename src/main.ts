@@ -56,7 +56,7 @@ var log = function (string) {
 const canvasDrawer = new CanvasDrawer('board-canvas');
 
 const currentGame = new Game()
-
+let renderDone = true;
 var processBoard = function (boardString: string) {
     var boardJson = JSON.parse(boardString.replace('board=', ''));
 
@@ -65,7 +65,20 @@ var processBoard = function (boardString: string) {
     const answer = currentGame.tick(boardJson);
     console.info(`Tick: ${currentGame.currentTick}. Processing time: ${Date.now() - time}`);
 
-    canvasDrawer.renderBoard(boardJson.layers);
+    if (renderDone) {
+        renderDone = false;
+        requestAnimationFrame(() => {
+            canvasDrawer.clear();
+            canvasDrawer.renderBoard(boardJson.layers);
+            canvasDrawer.renderStaticBorders((new Board(boardJson)).barriersMap);
+            const distances = currentGame.distances;
+            if (distances) {
+                canvasDrawer.renderNumbers(distances);
+            }
+            renderDone = true;
+        });
+    }
+
 
     return answer;
 };

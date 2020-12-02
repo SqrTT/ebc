@@ -65,7 +65,57 @@ const elementsMap = {
     '▼': 'laser_machine_ready_down.png',
 }
 
+function drawTextBG(ctx: CanvasRenderingContext2D, txt: string | number, font: string, x: number, y: number) {
+
+    /// lets save current state as we make a lot of changes
+    ctx.save();
+
+    /// set font
+    ctx.font = font;
+
+    /// draw text from top - makes life easier at the moment
+    ctx.textBaseline = 'top';
+
+    /// color for background
+    ctx.fillStyle = '#fff';
+
+    /// get width of text
+    var width = ctx.measureText(txt.toString()).width;
+
+    /// draw background rect assuming height of font
+    ctx.fillRect(x, y, width, parseInt(font, 10));
+
+    /// text color
+    ctx.fillStyle = '#000';
+
+    /// draw text on top
+    ctx.fillText(txt.toString(), x, y);
+
+    /// restore original state
+    ctx.restore();
+}
 export class CanvasDrawer {
+    renderNumbers(distances: number[][]) {
+        for (var x = 0; x < this.tilesCount; x++) {
+            for (var y = 0; y < this.tilesCount; y++) {
+                if (distances[x][y] && distances[x][y] < 100) {
+                    this.drawText(x, y, distances[x][y]);
+                }
+            }
+        }
+    }
+    drawText(x: number, y: number, text: string | number) {
+        const ctx = this.el.getContext("2d");
+
+        if (ctx) {
+            drawTextBG(ctx,
+                text,
+                '10px',
+                x * this.tileSize + (this.tileSize / String(text).length) - this.tileSize / 2,
+                (this.tilesCount - 1 - y) * this.tileSize + this.tileSize / 2
+            );
+        }
+    }
     tileSize: number;
     tilesCount: number;
     el: HTMLCanvasElement;
@@ -80,7 +130,7 @@ export class CanvasDrawer {
                 x * this.tileSize + dx,
                 (this.tilesCount - 1 - y) * this.tileSize + dy - (xSize ? this.tileSize : 0),
                 this.tileSize,
-                xSize ? this.tileSize * 2: this.tileSize
+                xSize ? this.tileSize * 2 : this.tileSize
             );
         }
     }
@@ -121,6 +171,30 @@ export class CanvasDrawer {
             }
         });
 
+    }
+    renderStaticBorders(borders: boolean[][]) {
+        for (var x = 0; x < this.tilesCount; x++) {
+            for (var y = 0; y < this.tilesCount; y++) {
+                if (borders[x][y]) {
+                    this.drawRec(x, y);
+                }
+            }
+        }
+    }
+    drawRec(x: number, y: number, color = 'blue') {
+        const ctx = this.el.getContext("2d");
+
+        if (ctx) {
+            /// lets save current state as we make a lot of changes
+            ctx.save();
+            ctx.fillStyle = color;
+            ctx.globalAlpha = 0.4;
+            ctx.fillRect(x * this.tileSize, (this.tilesCount - 1 - y) * this.tileSize, this.tileSize, this.tileSize);
+            ctx.globalAlpha = 1.0;
+
+            /// restore original state
+            ctx.restore();
+        }
     }
     loadSpriteImages(onImageLoad = () => { }) {
         Object.keys(elementsMap).forEach(key => {

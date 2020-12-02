@@ -6,7 +6,8 @@ export class Direction {
         public readonly index: number,
         public readonly dx: number,
         public readonly dy: number,
-        public readonly name: string
+        public readonly name: string,
+        public readonly cost: number
     ) { }
     changeX(x: number) {
         return x + this.dx;
@@ -72,8 +73,8 @@ export class Direction {
 }
 
 
-function D(index: number, dx: number, dy: number, name: string) {
-    return new Direction(index, dx, dy, name);
+function D(index: number, dx: number, dy: number, name: string, cost = 1) {
+    return new Direction(index, dx, dy, name, cost);
 };
 
 class DirectionList {
@@ -81,6 +82,10 @@ class DirectionList {
     static DOWN = D(3, 0, -1, 'DOWN')
     static LEFT = D(0, -1, 0, 'LEFT')
     static RIGHT = D(1, 1, 0, 'RIGHT')
+    static UP_JUMP = D(10, 0, 2, 'ACT(1),UP', 2)
+    static DOWN_JUMP = D(11, 0, -2, 'ACT(1),DOWN', 2)
+    static LEFT_JUMP = D(12, -2, 0, 'ACT(1),LEFT', 2)
+    static RIGHT_JUMP = D(13, 2, 0, 'ACT(1),RIGHT', 2)
     static JUMP = D(4, 0, 0, 'ACT(1)')            // jump
     static PULL = D(5, 0, 0, 'ACT(2)')            // pull box
     static FIRE = D(6, 0, 0, 'ACT(3)')            // fire

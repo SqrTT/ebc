@@ -1,12 +1,48 @@
 import Point from './Point';
 import elementsList, { Element } from './Element';
-import DirectionList from './Direction';
+import DirectionList, { Direction } from './Direction';
 
 const LAYER1 = 0;
 const LAYER2 = 1;
 const LAYER3 = 2;
 
 type LAYER_NO = typeof LAYER1 | typeof LAYER2 | typeof LAYER3;
+
+function range(start = 0, stop: number, step = 1): number[] {
+    if (stop == null) {
+        stop = start || 0;
+        start = 0;
+    }
+    if (!step) {
+        step = stop < start ? -1 : 1;
+    }
+
+    var length = Math.max(Math.ceil((stop - start) / step), 0);
+    var range = Array(length);
+
+    for (var idx = 0; idx < length; idx++, start += step) {
+        range[idx] = start;
+    }
+
+    return range;
+}
+
+function makeArray<T>(x: number, y: number, fillValue: T) {
+    return (new Array<T>(x)).fill(fillValue)
+        .map(() => (new Array<T>(y)).fill(fillValue));
+}
+
+const MOVE_DIRECTIONS = [
+    DirectionList.DOWN,
+    DirectionList.DOWN_JUMP,
+    DirectionList.UP,
+    DirectionList.UP_JUMP,
+    DirectionList.LEFT,
+    DirectionList.LEFT_JUMP,
+    DirectionList.RIGHT,
+    DirectionList.RIGHT_JUMP,
+    DirectionList.STOP
+]
 
 /**
  *
@@ -94,7 +130,7 @@ class Board {
         for (var x = 0; x < this.size; x++) {
             this.barriersMap[x] = new Array(this.size);
         };
-        this.getBarriers();
+        this.getStaticBarriers();
     }
     getFromArray(x, y, array, def) {
         if (this.isOutOf(x, y)) {
@@ -135,7 +171,29 @@ class Board {
     }
     isWallAt(x: number, y: number) {
         return this.getAt(LAYER1, x, y).type == 'WALL';
-    };
+    }
+
+    blasts(sx, sy, blast = 4, br = true) {
+        const result: number[][] = [];
+        for (const [search_range, is_x] of [
+            [range(sx, sx + blast), true] as [number[], boolean],
+            [range(sx, sx - blast, -1), true] as [number[], boolean],
+            [range(sy, sy + blast), false] as [number[], boolean],
+            [range(sy, sy - blast, -1), false] as [number[], boolean]
+        ]) {
+
+            for (const i of search_range) {
+                const [x, y] = is_x ? [i, sy] : [sx, i];
+                const el1 = this.getAt(0, x, y);
+
+                if (this.isOutOf(x, y) || elementsList.isWall(el1) || this.getAt(1, x, y) === elementsList.BOX) {
+                    break
+                }
+                result.push([x, y]);
+            }
+        }
+        return result;
+    }
     getOtherHeroes() {
         var elements = [elementsList.ROBOT_OTHER, elementsList.ROBOT_OTHER_FALLING, elementsList.ROBOT_OTHER_LASER];
         return this.get(LAYER2, elements)
@@ -315,7 +373,44 @@ class Board {
     isOutOf(x: number, y: number) {
         return (x < 0 || y < 0 || x >= this.size || y >= this.size);
     }
-    getBarriers() {
+    bfs() {
+        const distances = makeArray(this.size, this.size, +Infinity);
+        const parent = makeArray<[number, number, number] | null>(this.size, this.size, null);
+        const penalty = makeArray(this.size, this.size, 0);
+
+
+        for (var x = 0; x < this.size; x++) {
+            for (var y = 0; y < this.size; y++) {
+                if (this.barriersMap[x][y]) {
+                    penalty[x][y] = 10e9;
+                }
+            }
+        }
+        const me = this.getMe();
+
+        distances[me.x][me.y] = 0;
+        const Q = [[me.x, me.y, 0]];
+        let length = 0;
+
+        while (length < Q.length) {
+            var [posX, posY, time] = Q[length];
+            length++;
+            for (var dir of MOVE_DIRECTIONS) {
+                var xx = dir.changeX(posX);
+                var yy = dir.changeY(posY);
+                var tt = time + dir.cost;
+                if (!this.isOutOf(xx, yy) && distances[xx][yy] > distances[posX][posY] + dir.cost + penalty[xx][yy]) {
+                    distances[xx][yy] = distances[posX][posY] + dir.cost + penalty[xx][yy];
+                    parent[xx][yy] = [posX, posY, time]
+                    Q.push([xx, yy, tt]);
+                }
+            }
+        }
+
+
+        return { distances, parent };
+    }
+    getStaticBarriers() {
         if (this.barriers) {
             return this.barriers;
         }
