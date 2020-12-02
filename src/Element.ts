@@ -1,12 +1,12 @@
-import DirectionList from './Direction'
+import DirectionList, { Direction } from './Direction'
 
 const elements = [] as Element[];
 const elementsTypes = [] as string[];
 const elementsByChar = {};
-const elementsByType = {} as {[key: string]: Element[]};
+const elementsByType = {} as { [key: string]: Element[] };
 
 export class Element {
-    constructor(public readonly char: string, public readonly type: string, public readonly direction?: DirectionList) {
+    constructor(public readonly char: string, public readonly type: string, public readonly direction?: Direction) {
         elementsByChar[char] = this;
 
         if (!elementsByType[type]) {
@@ -106,7 +106,7 @@ const elementsList = {
             }
         });
 
-        var result : string[] = [];
+        var result: string[] = [];
         elements.forEach(function (e) {
             if (!result.includes(e)) {
                 result.push(e);

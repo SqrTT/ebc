@@ -206,6 +206,11 @@ class Board {
         return this.get(LAYER2, elements)
             .concat(this.get(LAYER3, [elementsList.ROBOT_OTHER_FLYING]));
     }
+    getOtherLiveHeroes() {
+        var elements = [elementsList.ROBOT_OTHER];
+        return this.get(LAYER2, elements)
+            .concat(this.get(LAYER3, [elementsList.ROBOT_OTHER_FLYING]));
+    }
     get(layer: LAYER_NO, elements: Element[]) {
         var result: Point[] = [];
         for (var x = 0; x < this.size; x++) {
@@ -258,6 +263,9 @@ class Board {
     getZombies() {
         return this.get(LAYER2, [elementsList.FEMALE_ZOMBIE, elementsList.MALE_ZOMBIE,
         elementsList.ZOMBIE_DIE]);
+    }
+    getLiveZombies() {
+        return this.get(LAYER2, [elementsList.FEMALE_ZOMBIE, elementsList.MALE_ZOMBIE]);
     }
     getZombieStart() {
         return this.get(LAYER1, [elementsList.ZOMBIE_START]);
@@ -403,7 +411,7 @@ class Board {
                 }
             }
         }
-        for (const npc of this.getOtherHeroes().concat(this.getZombies())) {
+        for (const npc of this.getOtherLiveHeroes().concat(this.getLiveZombies())) {
             for (const [x, y] of this.blasts(npc.x, npc.y, 2)) {
                 penalty[x][y] += 10;
 
@@ -420,8 +428,20 @@ class Board {
             for (var dir of MOVE_DIRECTIONS) {
                 var xx = dir.changeX(posX);
                 var yy = dir.changeY(posY);
+                if (this.isOutOf(xx, yy)) {
+                    continue;
+                }
+                var ll = this.getAt(LAYER2, xx, yy);
+                if (lasersElements.includes(ll)) {
+                    var lDir = ll.direction;
+                    if (lDir) {
+                        if (lDir.changeX(xx) === posX && lDir.changeY(yy) === posY) {
+                            continue;
+                        }
+                    }
+                }
                 var tt = time + dir.cost;
-                if (!this.isOutOf(xx, yy) && distances[xx][yy] > distances[posX][posY] + dir.cost + penalty[xx][yy]) {
+                if (distances[xx][yy] > distances[posX][posY] + dir.cost + penalty[xx][yy]) {
                     distances[xx][yy] = distances[posX][posY] + dir.cost + penalty[xx][yy];
                     parent[xx][yy] = [posX, posY, time, dir]
                     Q.push([xx, yy, tt, dir]);

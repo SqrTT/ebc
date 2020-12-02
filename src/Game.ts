@@ -113,7 +113,7 @@ class Game {
         })
 
         if (isSafe && haveAmmo) {
-            const enemies = board.getOtherHeroes().concat(board.getZombies())
+            const enemies = board.getOtherLiveHeroes().concat(board.getLiveZombies())
                 .map(goldPt => ({ pos: goldPt, distance: getDistance(me, goldPt) }))
                 .sort((a, b) => {
                     return a.distance - b.distance;
@@ -143,12 +143,12 @@ class Game {
         }
 
         if (haveAmmo) {
-            for (const zombie of board.getZombies()) {
+            for (const zombie of board.getLiveZombies()) {
                 for (const [blastX, blastY] of board.blasts(zombie.x, zombie.y)) {
                     scores[blastX][blastY] += this.options.zombieKill;
                 };
             }
-            for (const players of board.getOtherHeroes()) {
+            for (const players of board.getOtherLiveHeroes()) {
                 for (const [blastX, blastY] of board.blasts(players.x, players.y)) {
                     scores[blastX][blastY] +=  this.options.playerKill;
                 };
@@ -198,7 +198,7 @@ class Game {
 
             console.log(`tx ${tx} ty ${ty} sc ${best} ${pDir}`);
 
-            this.distances = distances;
+            this.distances = scores;
 
             if (pDir) {
 

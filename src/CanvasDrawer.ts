@@ -99,7 +99,7 @@ export class CanvasDrawer {
         for (var x = 0; x < this.tilesCount; x++) {
             for (var y = 0; y < this.tilesCount; y++) {
                 if (distances[x][y] && distances[x][y] > -1e4 && distances[x][y] < 1e5) {
-                    this.drawText(x, y, distances[x][y]);
+                    this.drawText(x, y, (distances[x][y]).toFixed(2).replace('.00', ''));
                 }
             }
         }
