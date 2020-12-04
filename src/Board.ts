@@ -115,6 +115,7 @@ class Board {
     layersString: string[]
     barriersMap: boolean[][]
     barriers: any;
+    lasersTrace: (Direction | null)[][][];
     constructor(board) {
         this.layersString = board.layers;
         this.scannerOffset = board.offset;
@@ -143,6 +144,28 @@ class Board {
             this.barriersMap[x] = new Array(this.size);
         };
         this.getStaticBarriers();
+
+
+        this.lasersTrace = makeArray3(this.size, this.size, null, calcDepth) as (Direction | null)[][][];
+
+        for(const laser of this.getLasersAndReadyMachines()) {
+            const dir = laser.direction && DirectionList.get(laser.direction);
+            if (dir) {
+                let newL = dir.change(laser);
+                for (const t of range(0, calcDepth)) {
+                    if (!newL.isBad(this.size)) {
+                        this.lasersTrace[t][newL.y][newL.x] = dir;
+                        if (
+                            this.getAt(LAYER1, newL.x, newL.y).type === 'WALL'
+                            || this.getAt(LAYER2, newL.x, newL.y).type === 'BOX'
+                        ) {
+                            break;
+                        }
+                        newL = dir.change(laser);
+                    }
+                }
+            }
+        }
     }
     getFromArray(x, y, array, def) {
         if (this.isOutOf(x, y)) {
@@ -423,17 +446,24 @@ class Board {
             penalty[box.y][box.x] = 10e5;
         }
 
-        for (const laser of this.getLasersAndReadyMachines()) {
-            const dir = laser.direction && DirectionList.get(laser.direction);
-            if (dir) {
-                const newL = dir.change(laser);
-                if (!newL.isBad(this.size)) {
-                    penalty[newL.y][newL.x] += 10e9;
-                }
+        // for (const laser of this.getLasersAndReadyMachines()) {
+        //     const dir = laser.direction && DirectionList.get(laser.direction);
+        //     if (dir) {
+        //         const newL = dir.change(laser);
+        //         if (!newL.isBad(this.size)) {
+        //             penalty[newL.y][newL.x] += 10e9;
+        //         }
+        //     }
+        // }
+
+        for (const npc of this.getOtherLiveHeroes()) {
+            for (const [x, y] of this.blasts(npc.x, npc.y, 2)) {
+                penalty[y][x] += 10;
             }
         }
-        for (const npc of this.getOtherLiveHeroes().concat(this.getLiveZombies())) {
-            for (const [x, y] of this.blasts(npc.x, npc.y, 2)) {
+        for (const zombie of this.getLiveZombies()) {
+            penalty[zombie.y][zombie.x] += 20;
+            for (const [x, y] of this.blasts(zombie.x, zombie.y, 2)) {
                 penalty[y][x] += 10;
             }
         }
@@ -462,9 +492,11 @@ class Board {
                             }
                         }
                     }
+                    var currentPenalty = penalty[yy][xx];
+                    currentPenalty += this.lasersTrace[Math.min(Math.floor(time), calcDepth - 1)][yy][xx] ? 10e9 : 0;
                     var tt = time + dir.cost;
-                    if (distances[yy][xx] > distances[posY][posX] + dir.cost + penalty[yy][xx]) {
-                        distances[yy][xx] = distances[posY][posX] + dir.cost + penalty[yy][xx];
+                    if (distances[yy][xx] > distances[posY][posX] + dir.cost + currentPenalty) {
+                        distances[yy][xx] = distances[posY][posX] + dir.cost + currentPenalty;
                         parent[yy][xx] = [posX, posY, time, dir];
                         Q.push([xx, yy, tt, dir]);
                     }

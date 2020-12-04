@@ -21,9 +21,9 @@ const DEFAULT_OPTIONS = {
     roomSize: 5,
     roundWin: 25,
     goldValue: 10,
-    playerKill: 10,
+    playerKill: 3,
     zombieKill: 5,
-    diePenalty: -1,
+    diePenalty: -5,
     // Частота випадання перків :  (50)
     perkAvailable: 10,
     parkEffect: 10,
@@ -79,7 +79,7 @@ class Game {
         this.firedAtTick = -Infinity;
         this.goldAmountCollected = 0;
     }
-    tick(boardJson: ServerState) : [string, number[][] | undefined]{
+    tick(boardJson: ServerState): [string, number[][] | undefined] {
         const playerEl = boardJson.layers[1].split('').concat(boardJson.layers[2].split('')).find(char => myRobotElements.includes(char))
 
 
@@ -99,6 +99,10 @@ class Game {
                 }
                 this.currentTick++;
                 const currentBoard = new Board(boardJson);
+                if (currentBoard.getExits().some(exit => exit.equals(currentBoard.getMe())) && !currentBoard.get(2, [elementsList.ROBOT_FLYING]).length) {
+                    this.reset();
+                    return [Command.doNothing(), undefined];
+                }
                 const step = this.move(currentBoard);
                 this.previousBoard = currentBoard;
                 return step;
@@ -121,25 +125,17 @@ class Game {
             }
         }
     }
-    move(board: Board) : [string, number[][] | undefined] {
+    move(board: Board): [string, number[][] | undefined] {
         this.checkCollected(board);
         const me = board.getMe();
         const scores = makeArray(board.size, board.size, 0);
 
         const haveAmmo = this.currentTick >= this.firedAtTick + this.options.gunReload;
 
-        const isSafe = !board.getLasers().some(laser => {
-            var direction = laser.direction;
-            if (direction) {
-                const dir = DirectionList.get(direction);
-                if (dir) {
-                    var next = dir.change(laser);
-                    return next.equals(me);
-                } else {
-                    console.error('laser without direction');
-                }
-            }
-        }) && this.noZombieAround(board) && this.noLasersOnPreviousStep(me);
+        const isSafe = this.noLasersAround(me, board)
+            && this.noZombieAround(board)
+            && this.noOtherPlayersAround(board)
+            && this.noLasersOnPreviousStep(me);
 
         if (isSafe && haveAmmo) {
             const enemies = board.getOtherLiveHeroes().concat(board.getLiveZombies())
@@ -168,10 +164,27 @@ class Game {
             scores[wall.y][wall.x] = - 1e9;
         }
         const exits = board.getExits();
+        const golds = board.getGold();
         for (const exit of exits) {
-            scores[exit.y][exit.x] += this.options.roundWin + this.goldAmountCollected * 2;
+            if (!golds.length) {
+                scores[exit.y][exit.x] += this.options.roundWin;
+            } else {
+                const { distances } = board.bfs(exit.x, exit.y);
+
+                const exitDistances = golds.map(gold => distances[gold.y][gold.x]).filter(goldDistance => goldDistance < 20);
+                if (!exitDistances.length || this.goldAmountCollected > 20) {
+                    scores[exit.y][exit.x] += this.options.roundWin + this.goldAmountCollected * 10;
+                } else {
+                    board.barriersMap[exit.y][exit.x] = true;
+                } if (distances[me.y][me.x] > 30) {
+                    scores[exit.y][exit.x] += this.options.roundWin + this.goldAmountCollected * 2;
+                }
+
+            }
+            //scores[gold.y][gold.x] += this.options.goldValue + this.options.roundWin * 7 / exitDistances[0];
         }
-        for (const gold of board.getGold()) {
+        for (const gold of golds) {
+
             scores[gold.y][gold.x] += this.options.goldValue;
 
             // if (getDistance(me, gold) < 20 && exits.length) {
@@ -246,7 +259,7 @@ class Game {
                 }
             }
 
-            console.log(`tx ${tx} ty ${ty} sc ${best.toFixed(2)} ${pDir}`);
+            console.log(`gold ${this.goldAmountCollected} ${pDir}`);
 
 
             if (pDir) {
@@ -279,9 +292,27 @@ class Game {
         }
         return true;
     }
+    noLasersAround(me: Point, board: Board) {
+        return !board.getLasers().some(laser => {
+            var direction = laser.direction;
+            if (direction) {
+                const dir = DirectionList.get(direction);
+                if (dir) {
+                    var next = dir.change(laser);
+                    return next.equals(me);
+                } else {
+                    console.error('laser without direction');
+                }
+            }
+        })
+    }
     noZombieAround(board: Board) {
         const me = board.getMe();
         return !board.isNear(1, me.x, me.y, [elementsList.MALE_ZOMBIE, elementsList.FEMALE_ZOMBIE])
+    }
+    noOtherPlayersAround(board: Board) {
+        const me = board.getMe();
+        return !board.isNear(1, me.x, me.y, [elementsList.ROBOT_OTHER, elementsList.ROBOT_OTHER_FLYING])
     }
 }
 

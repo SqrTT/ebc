@@ -81,6 +81,19 @@ const cumulativeLevel1 = [["#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#"
 //     return cumulativeLevel1;
 // }
 
+
+var pressed = {};
+document.onkeydown = function (e) {
+    e = e || window.event;
+    pressed[e.keyCode] = true;
+    e.preventDefault();
+}
+
+document.onkeyup = function (e) {
+    e = e || window.event;
+    delete pressed[e.keyCode];
+    e.preventDefault();
+}
 const currentGame = new Game()
 let renderDone = true;
 var processBoard = function (boardString: string) {
@@ -113,25 +126,43 @@ var processBoard = function (boardString: string) {
     boardJson.heroPosition.y = size - boardJson.heroPosition.y + size - boardJson.offset.y - 1;
 
     const time = Date.now();
-    const [answer, distances] = currentGame.t   ick(boardJson);
-    console.info(`${answer} tick: ${currentGame.currentTick}. time: ${Date.now() - time}`);
-
-    if (renderDone) {
-        renderDone = false;
-        // requestAnimationFrame(() => {
+    if (pressed[38]) {
         canvasDrawer.clear();
         canvasDrawer.renderBoard(boardJson.layers);
-        //canvasDrawer.renderStaticBorders((new Board(boardJson)).barriersMap);
+        return (pressed[16] ? 'ACT(2),' : '') + Command.go('UP');
+    } else if (pressed[40]) {
+        canvasDrawer.clear();
+        canvasDrawer.renderBoard(boardJson.layers);
+        return (pressed[16] ? 'ACT(2),' : '') + Command.go('DOWN');
+    } else if (pressed[37]) {
+        canvasDrawer.clear();
+        canvasDrawer.renderBoard(boardJson.layers);
+        return (pressed[16] ? 'ACT(2),' : '') + Command.go('LEFT');
+    } else if (pressed[39]) {
+            canvasDrawer.clear();
+            canvasDrawer.renderBoard(boardJson.layers);
+            return (pressed[16] ? 'ACT(2),' : '') + Command.go('RIGHT');
+    } else {
+        const [answer, distances] = currentGame.tick(boardJson);
+        console.info(`${answer} tick: ${currentGame.currentTick}. time: ${Date.now() - time}`);
 
-        if (distances) {
-            canvasDrawer.renderNumbers(distances);
+        if (renderDone) {
+            renderDone = false;
+            // requestAnimationFrame(() => {
+            canvasDrawer.clear();
+            canvasDrawer.renderBoard(boardJson.layers);
+            //canvasDrawer.renderStaticBorders((new Board(boardJson)).barriersMap);
+
+            if (distances) {
+                canvasDrawer.renderNumbers(distances);
+            }
+            renderDone = true;
+            //});
         }
-        renderDone = true;
-        //});
+
+
+        return answer;
     }
-
-
-    return answer;
 };
 
 const connectionUrl = connectionEnv.url.replace("http", "ws").replace("board/player/", "ws?user=").replace("?code=", "&code=");
