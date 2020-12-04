@@ -8,7 +8,7 @@ const LAYER3 = 2;
 
 type LAYER_NO = typeof LAYER1 | typeof LAYER2 | typeof LAYER3;
 
-function range(start = 0, stop: number, step = 1): number[] {
+export function range(start = 0, stop: number, step = 1): number[] {
     if (stop == null) {
         stop = start || 0;
         start = 0;
@@ -26,10 +26,14 @@ function range(start = 0, stop: number, step = 1): number[] {
 
     return range;
 }
-
 function makeArray<T>(x: number, y: number, fillValue: T) {
     return (new Array<T>(x)).fill(fillValue)
         .map(() => (new Array<T>(y)).fill(fillValue));
+}
+
+function makeArray3<T>(x: number, y: number, fillValue: T, z: number) {
+    return (new Array<T>(z)).fill(fillValue)
+        .map(() => (new Array<T>(y)).fill(fillValue).map(() => (new Array<T>(x)).fill(fillValue)));
 }
 
 const MOVE_DIRECTIONS = [
@@ -100,6 +104,9 @@ elementsList.LASER_MACHINE_READY_UP, elementsList.LASER_MACHINE_READY_DOWN];
 
 const lasersElements = [elementsList.LASER_LEFT, elementsList.LASER_RIGHT,
 elementsList.LASER_UP, elementsList.LASER_DOWN];
+
+
+export const calcDepth = 7;
 class Board {
     size: number;
     scannerOffset: XY;
@@ -172,7 +179,13 @@ class Board {
         return false;
     }
     getMe() {
-        return pt(this.heroPosition.x, this.heroPosition.y);
+        //return pt(this.heroPosition.x, this.heroPosition.y);
+        const myRobot = this.get(LAYER2, elementsList.getElementsOfType('MY_ROBOT'));
+        if (myRobot.length) {
+            return myRobot[0];
+        }
+        const myRobot2 = this.get(LAYER3, elementsList.getElementsOfType('MY_ROBOT'));
+        return myRobot2[0];
     }
     isWallAt(x: number, y: number) {
         return this.getAt(LAYER1, x, y).type == 'WALL';
@@ -405,12 +418,17 @@ class Board {
                 }
             }
         }
+
+        for (const box of this.getBoxes()) {
+            penalty[box.y][box.x] = 10e5;
+        }
+
         for (const laser of this.getLasersAndReadyMachines()) {
             const dir = laser.direction && DirectionList.get(laser.direction);
             if (dir) {
                 const newL = dir.change(laser);
                 if (!newL.isBad(this.size)) {
-                    penalty[newL.y][newL.x] += 1;
+                    penalty[newL.y][newL.x] += 10e9;
                 }
             }
         }
@@ -428,10 +446,10 @@ class Board {
             var [posX, posY, time] = Q[length];
             length++;
             if (this.getAt(LAYER1, posX, posY).type !== 'UNKNOWN') {
-
                 for (var dir of MOVE_DIRECTIONS) {
                     var xx = dir.changeX(posX);
                     var yy = dir.changeY(posY);
+
                     if (this.isOutOf(xx, yy)) {
                         continue;
                     }
@@ -447,7 +465,7 @@ class Board {
                     var tt = time + dir.cost;
                     if (distances[yy][xx] > distances[posY][posX] + dir.cost + penalty[yy][xx]) {
                         distances[yy][xx] = distances[posY][posX] + dir.cost + penalty[yy][xx];
-                        parent[yy][xx] = [posX, posY, time, dir]
+                        parent[yy][xx] = [posX, posY, time, dir];
                         Q.push([xx, yy, tt, dir]);
                     }
                 }
@@ -466,12 +484,11 @@ class Board {
         for (var x = 0; x < this.size; x++) {
             for (var y = 0; y < this.size; y++) {
                 var element1 = this.getAt(LAYER1, x, y);
-                var element2 = this.getAt(LAYER2, x, y);
+                // var element2 = this.getAt(LAYER2, x, y);
 
                 this.barriersMap[y][x] = (
                     element1.type == 'WALL' ||
                     element1 == elementsList.HOLE ||
-                    element2 == elementsList.BOX ||
                     laserMachineElements.includes(element1)
                 );
 
@@ -486,12 +503,12 @@ class Board {
     isAnyOfAt(layer: LAYER_NO, x: number, y: number, elements: Element[]) {
         return this.isAt(layer, x, y, elements);
     }
-    isNear(layer: LAYER_NO, x: number, y: number, element: Element) {
+    isNear(layer: LAYER_NO, x: number, y: number, elements: Element[]) {
         if (pt(x, y).isBad(this.size)) {
             return false;
         }
-        return this.isAt(layer, x + 1, y, [element]) || this.isAt(layer, x - 1, y, [element])
-            || this.isAt(layer, x, y + 1, [element]) || this.isAt(layer, x, y - 1, [element]);
+        return this.isAt(layer, x + 1, y, elements) || this.isAt(layer, x - 1, y, elements)
+            || this.isAt(layer, x, y + 1, elements) || this.isAt(layer, x, y - 1, elements);
     }
     isBarrierAt(x, y) {
         return this.barriersMap[x][y];

@@ -1,4 +1,4 @@
-import Board from './Board';
+import Board, { calcDepth, range } from './Board';
 import Command from './Command';
 import DirectionList, { Direction } from './Direction';
 import elementsList from './Element';
@@ -19,11 +19,11 @@ enum GameState {
 
 const DEFAULT_OPTIONS = {
     roomSize: 5,
-    roundWin: 50,
-    goldValue: 20,
+    roundWin: 25,
+    goldValue: 10,
     playerKill: 10,
     zombieKill: 5,
-    diePenalty: 0,
+    diePenalty: -1,
     // Частота випадання перків :  (50)
     perkAvailable: 10,
     parkEffect: 10,
@@ -54,6 +54,11 @@ export interface ServerState {
         lastPassed: number
     }
 }
+declare global {
+    interface Window {
+        dieOnce: boolean | undefined
+    }
+}
 
 class Game {
     currentTick: number
@@ -61,6 +66,8 @@ class Game {
     readonly options: typeof DEFAULT_OPTIONS;
     distances?: number[][]
     firedAtTick: number;
+    previousBoard: Board | undefined;
+    goldAmountCollected: number = 0;
     constructor(options?: typeof DEFAULT_OPTIONS) {
         this.options = { ...DEFAULT_OPTIONS, ...options }
         this.state = GameState.WAIT;
@@ -70,8 +77,9 @@ class Game {
     reset() {
         this.currentTick = 0;
         this.firedAtTick = -Infinity;
+        this.goldAmountCollected = 0;
     }
-    tick(boardJson: ServerState) {
+    tick(boardJson: ServerState) : [string, number[][] | undefined]{
         const playerEl = boardJson.layers[1].split('').concat(boardJson.layers[2].split('')).find(char => myRobotElements.includes(char))
 
 
@@ -79,23 +87,42 @@ class Game {
             if (ElementsList.ROBOT_LASER.char === playerEl || ElementsList.ROBOT_FALLING.char === playerEl) {
                 this.state = GameState.DIED;
                 console.log('Died. Do nothing');
-                return Command.doNothing();
+                return [Command.doNothing(), undefined];
             } else {
                 if (this.state !== GameState.PLAY) {
                     this.state = GameState.PLAY;
                     this.reset();
                 }
+                if (window.dieOnce) {
+                    window.dieOnce = false;
+                    return [Command.die(), undefined];
+                }
                 this.currentTick++;
-                return this.move(new Board(boardJson));
+                const currentBoard = new Board(boardJson);
+                const step = this.move(currentBoard);
+                this.previousBoard = currentBoard;
+                return step;
             }
         } else {
             this.state = GameState.WAIT;
             console.log('No Player?. Do nothing');
 
-            return Command.doNothing();
+            return [Command.doNothing(), undefined];
         }
     }
-    move(board: Board) {
+    checkCollected(board: Board) {
+        if (this.previousBoard) {
+            const me = board.getMe();
+            const el = this.previousBoard.getAt(0, me.x, me.y);
+
+            if (el === elementsList.GOLD) {
+                this.goldAmountCollected++;
+                console.info('Gold collected');
+            }
+        }
+    }
+    move(board: Board) : [string, number[][] | undefined] {
+        this.checkCollected(board);
         const me = board.getMe();
         const scores = makeArray(board.size, board.size, 0);
 
@@ -108,9 +135,11 @@ class Game {
                 if (dir) {
                     var next = dir.change(laser);
                     return next.equals(me);
+                } else {
+                    console.error('laser without direction');
                 }
             }
-        })
+        }) && this.noZombieAround(board) && this.noLasersOnPreviousStep(me);
 
         if (isSafe && haveAmmo) {
             const enemies = board.getOtherLiveHeroes().concat(board.getLiveZombies())
@@ -126,20 +155,31 @@ class Game {
                 const dir = DirectionList.where(me, reachable.pos);
                 if (dir) {
                     this.firedAtTick = this.currentTick;
-                    return Command.fire(dir);
+                    return [Command.fire(dir), undefined];
                 }
             }
+        }
+
+        if (!isSafe) {
+            scores[me.y][me.x] = -100;
         }
 
         for (const wall of board.getWalls()) {
             scores[wall.y][wall.x] = - 1e9;
         }
-
-        for (const exit of board.getExits()) {
-            scores[exit.y][exit.x] += this.options.roundWin;
+        const exits = board.getExits();
+        for (const exit of exits) {
+            scores[exit.y][exit.x] += this.options.roundWin + this.goldAmountCollected * 2;
         }
         for (const gold of board.getGold()) {
             scores[gold.y][gold.x] += this.options.goldValue;
+
+            // if (getDistance(me, gold) < 20 && exits.length) {
+            //     const { distances } = board.bfs(gold.x, gold.y);
+            //     const exitDistances = exits.map(exit => distances[exit.y][exit.x]).sort((a, b) => a - b);
+
+            //     scores[gold.y][gold.x] += this.options.goldValue + this.options.roundWin * 7 / exitDistances[0];
+            // }
         }
 
         for (const unvisited of board.getUnvisited()) {
@@ -154,7 +194,7 @@ class Game {
             }
             for (const players of board.getOtherLiveHeroes()) {
                 for (const [blastX, blastY] of board.blasts(players.x, players.y)) {
-                    scores[blastY][blastX] +=  this.options.playerKill;
+                    scores[blastY][blastX] += this.options.playerKill;
                 };
             }
         }
@@ -168,6 +208,7 @@ class Game {
         let best = -1;
         let tx: number | undefined;
         let ty: number | undefined;
+        let tt: number | undefined;
         for (var x = 0; x < board.size; x++) {
             for (var y = 0; y < board.size; y++) {
                 if (scores[y][x] < 0) {
@@ -182,35 +223,65 @@ class Game {
                     best = cur
                     tx = x
                     ty = y
-                    //tt = t
                 }
             }
         }
 
         if (best < 0) {
-            return Command.die();
+            return [Command.die(), undefined];
         } else if (tx && ty) {
             // var ptx: number, pty: number;
             var pDir: Direction | undefined;
 
-            let [Tx, Ty] = [tx, ty];
+            let [Tx, Ty, Tt] = [tx, ty, tt];
             //[ptx, pty] = [tx, ty];
-            while (tx != me.x || ty != me.y) {  // Looking for next point on the way to target
+            while ((tx != me.x || ty != me.y) && ty && tx) {  // Looking for next point on the way to target
                 // [ptx, pty] = [tx, ty];
-                [tx, ty, , pDir] = parent[ty][tx];
+                var pPoint = parent[ty][tx];
+                if (pPoint) {
+                    [tx, ty, tt, pDir] = pPoint;
+                } else {
+                    console.error('No track to object');
+                    return [Command.die(), distances];
+                }
             }
 
-            console.log(`tx ${tx} ty ${ty} sc ${best} ${pDir}`);
+            console.log(`tx ${tx} ty ${ty} sc ${best.toFixed(2)} ${pDir}`);
 
-            this.distances = scores;
 
             if (pDir) {
+                if ([
+                    DirectionList.DOWN,
+                    DirectionList.UP,
+                    DirectionList.LEFT,
+                    DirectionList.RIGHT
+                ].includes(pDir) && board.isNear(1, me.x, me.y, [elementsList.BOX])) {
+                    return [Command.pull(pDir), scores];
+                }
 
-                return pDir;
+                return [pDir.toString(), scores];
             }
-
-            return Command.doNothing();
         }
+        return [Command.doNothing(), undefined];
+    }
+    noLasersOnPreviousStep(me: Point) {
+        if (this.previousBoard) {
+            return !this.previousBoard.getLasers().some(laser => {
+                var direction = laser.direction;
+                if (direction) {
+                    const dir = DirectionList.get(direction);
+                    if (dir) {
+                        var next = dir.change(dir.change(laser));
+                        return next.equals(me);
+                    }
+                }
+            })
+        }
+        return true;
+    }
+    noZombieAround(board: Board) {
+        const me = board.getMe();
+        return !board.isNear(1, me.x, me.y, [elementsList.MALE_ZOMBIE, elementsList.FEMALE_ZOMBIE])
     }
 }
 
