@@ -105,8 +105,18 @@ elementsList.LASER_MACHINE_READY_UP, elementsList.LASER_MACHINE_READY_DOWN];
 const lasersElements = [elementsList.LASER_LEFT, elementsList.LASER_RIGHT,
 elementsList.LASER_UP, elementsList.LASER_DOWN];
 
+export class Player {
+    pt: Point;
+    dir: Direction;
+    fireTick: number;
+    moveTick: number;
+    constructor(pt: Point) {
+        this.pt = pt;
+    }
+    isAfk: boolean
+}
 
-export const calcDepth = 7;
+export const calcDepth = 10;
 class Board {
     size: number;
     scannerOffset: XY;
@@ -148,10 +158,10 @@ class Board {
 
         this.lasersTrace = makeArray3(this.size, this.size, null, calcDepth) as (Direction | null)[][][];
 
-        for(const laser of this.getLasersAndReadyMachines()) {
+        for (const laser of this.getLasersAndReadyMachines()) {
             const dir = laser.direction && DirectionList.get(laser.direction);
             if (dir) {
-                let newL = dir.change(laser);
+                let newL = laser;
                 for (const t of range(0, calcDepth)) {
                     if (!newL.isBad(this.size)) {
                         this.lasersTrace[t][newL.y][newL.x] = dir;
@@ -161,7 +171,7 @@ class Board {
                         ) {
                             break;
                         }
-                        newL = dir.change(laser);
+                        newL = dir.change(newL);
                     }
                 }
             }
@@ -376,38 +386,38 @@ class Board {
                 ' ' + index + this.maskOverlay(layer2[i], layer1[i]) +
                 ' ' + index + this.maskOverlay(layer3[i], layer1[i]);
 
-            switch (i) {
-                case 0:
-                    result += ' Robots: ' + this.getMe() + ',' + printArray(this.getOtherHeroes());
-                    break;
-                case 1:
-                    result += ' Gold: ' + printArray(this.getGold());
-                    break;
-                case 2:
-                    result += ' Starts: ' + printArray(this.getStarts());
-                    break;
-                case 3:
-                    result += ' Exits: ' + printArray(this.getExits());
-                    break;
-                case 4:
-                    result += ' Boxes: ' + printArray(this.getBoxes());
-                    break;
-                case 5:
-                    result += ' Holes: ' + printArray(this.getHoles());
-                    break;
-                case 6:
-                    result += ' LaserMachine: ' + printArray(this.getLaserMachines());
-                    break;
-                case 7:
-                    result += ' Lasers: ' + printArray(this.getLasers());
-                    break;
-                case 8:
-                    result += ' Zombies: ' + printArray(this.getZombies());
-                    break;
-                case 9:
-                    result += ' Perks: ' + printArray(this.getPerks());
-                    break;
-            }
+            // switch (i) {
+            //     case 0:
+            //         result += ' Robots: ' + this.getMe() + ',' + printArray(this.getOtherHeroes());
+            //         break;
+            //     case 1:
+            //         result += ' Gold: ' + printArray(this.getGold());
+            //         break;
+            //     case 2:
+            //         result += ' Starts: ' + printArray(this.getStarts());
+            //         break;
+            //     case 3:
+            //         result += ' Exits: ' + printArray(this.getExits());
+            //         break;
+            //     case 4:
+            //         result += ' Boxes: ' + printArray(this.getBoxes());
+            //         break;
+            //     case 5:
+            //         result += ' Holes: ' + printArray(this.getHoles());
+            //         break;
+            //     case 6:
+            //         result += ' LaserMachine: ' + printArray(this.getLaserMachines());
+            //         break;
+            //     case 7:
+            //         result += ' Lasers: ' + printArray(this.getLasers());
+            //         break;
+            //     case 8:
+            //         result += ' Zombies: ' + printArray(this.getZombies());
+            //         break;
+            //     case 9:
+            //         result += ' Perks: ' + printArray(this.getPerks());
+            //         break;
+            // }
 
             if (i != layer1.length - 1) {
                 result += '\n';
@@ -428,22 +438,18 @@ class Board {
     isOutOf(x: number, y: number) {
         return (x < 0 || y < 0 || x >= this.size || y >= this.size);
     }
-    bfs(fromX = this.getMe().x, fromY = this.getMe().y) {
+    bfs(fromX = this.getMe().x, fromY = this.getMe().y, players: Player[] = []) {
         const distances = makeArray(this.size, this.size, +Infinity);
         const parent = makeArray<[number, number, number, Direction] | null>(this.size, this.size, null);
         const penalty = makeArray(this.size, this.size, 0);
 
 
-        for (var x = 0; x < this.size; x++) {
-            for (var y = 0; y < this.size; y++) {
-                if (this.barriersMap[y][x]) {
-                    penalty[y][x] = 10e9;
-                }
-            }
-        }
-
         for (const box of this.getBoxes()) {
             penalty[box.y][box.x] = 10e5;
+        }
+
+        for (const box of this.getZombieStart()) {
+            penalty[box.y][box.x] += 2;
         }
 
         // for (const laser of this.getLasersAndReadyMachines()) {
@@ -456,11 +462,20 @@ class Board {
         //     }
         // }
 
-        for (const npc of this.getOtherLiveHeroes()) {
-            for (const [x, y] of this.blasts(npc.x, npc.y, 2)) {
-                penalty[y][x] += 10;
+        if (players.length) {
+            for (const npc of players) {
+                for (const [x, y] of this.blasts(npc.pt.x, npc.pt.y, 2)) {
+                    penalty[y][x] += npc.isAfk ? 0 : 10;
+                }
+            }
+        } else {
+            for (const npc of this.getOtherLiveHeroes()) {
+                for (const [x, y] of this.blasts(npc.x, npc.y, 2)) {
+                    penalty[y][x] += 10;
+                }
             }
         }
+
         for (const zombie of this.getLiveZombies()) {
             penalty[zombie.y][zombie.x] += 20;
             for (const [x, y] of this.blasts(zombie.x, zombie.y, 2)) {
@@ -482,19 +497,22 @@ class Board {
 
                     if (this.isOutOf(xx, yy)) {
                         continue;
+                    } else if (this.barriersMap[yy][xx]) {
+                        continue;
                     }
-                    var ll = this.getAt(LAYER2, xx, yy);
-                    if (lasersElements.includes(ll)) {
-                        var lDir = ll.direction;
-                        if (lDir) {
-                            if (lDir.changeX(xx) === posX && lDir.changeY(yy) === posY) {
-                                continue;
-                            }
+
+                    var tt = time + dir.cost;
+                    var lDir = this.lasersTrace[Math.min(Math.floor(tt -1), calcDepth - 1)][yy][xx];
+
+                    if (lDir) {
+                        if (lDir.changeX(xx) === posX && lDir.changeY(yy) === posY) {
+                            continue;
                         }
                     }
+
                     var currentPenalty = penalty[yy][xx];
-                    currentPenalty += this.lasersTrace[Math.min(Math.floor(time), calcDepth - 1)][yy][xx] ? 10e9 : 0;
-                    var tt = time + dir.cost;
+                    currentPenalty = this.lasersTrace[Math.min(Math.floor(tt), calcDepth - 1)][yy][xx] ? 10e9 : currentPenalty;
+
                     if (distances[yy][xx] > distances[posY][posX] + dir.cost + currentPenalty) {
                         distances[yy][xx] = distances[posY][posX] + dir.cost + currentPenalty;
                         parent[yy][xx] = [posX, posY, time, dir];
@@ -541,6 +559,19 @@ class Board {
         }
         return this.isAt(layer, x + 1, y, elements) || this.isAt(layer, x - 1, y, elements)
             || this.isAt(layer, x, y + 1, elements) || this.isAt(layer, x, y - 1, elements);
+    }
+    getNear(layer: LAYER_NO, x: number, y: number) {
+        if (this.isOutOf(x, y)) {
+            return [];
+        }
+        return [DirectionList.UP, DirectionList.DOWN, DirectionList.LEFT, DirectionList.RIGHT]
+            .map(dir =>
+            ({
+                dir: dir,
+                el: this.getAt(layer, dir.changeX(x), dir.changeY(y)),
+                get pt() { return pt(dir.changeX(x), dir.changeY(y)) }
+            }))
+        //.filter(a => !a.pt.isBad(this.size));
     }
     isBarrierAt(x, y) {
         return this.barriersMap[x][y];

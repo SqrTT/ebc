@@ -1,9 +1,12 @@
 import DirectionList, { Direction } from "./Direction";
 
+export function pt(x: number, y: number) {
+    return new Point(x, y)
+}
 export default class Point {
     constructor(public readonly  x : number, public readonly y : number, public readonly direction? : string) {}
 
-    equals(o) {
+    equals(o: this) {
         return o.getX() === this.x && o.getY() === this.y;
     }
 

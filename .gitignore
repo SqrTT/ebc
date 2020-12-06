@@ -3,3 +3,5 @@ node_modules
 env.ts
 out/index.js
 out/index.js.map
+out/test/testIndex.js
+out/test/testIndex.js.map

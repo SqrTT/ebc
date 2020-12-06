@@ -96,10 +96,18 @@ document.onkeyup = function (e) {
 }
 const currentGame = new Game()
 let renderDone = true;
+
+let prevBoard = '';
+
 var processBoard = function (boardString: string) {
     const boardJson = JSON.parse(boardString.replace('board=', '')) as ServerState;
     const size = Math.sqrt(boardJson.layers[0].length);
-    var xyl = new LengthToXY(size);
+
+    if (boardString.includes('☻')) {
+        console.error({prevBoard, boardString, currentGame: JSON.parse(JSON.stringify(currentGame))});
+        console.error(new Board(JSON.parse(prevBoard.replace('board=', ''))).toString());
+    }
+    prevBoard = boardString;
 
     const level2Board = makeArray(bigBoardSize, bigBoardSize, '-');
     const level3Board = makeArray(bigBoardSize, bigBoardSize, '-');
@@ -196,126 +204,3 @@ function connect() {
 connect();
 //}
 
-
-
-
-
-// /**
-//  *
-//  * @param {Point} from
-//  * @param {Point} to
-//  */
-// function getDistance(from, to) {
-//     var a = from.x - to.x;
-//     var b = from.y - to.y;
-
-//     return Math.sqrt(a * a + b * b);
-// }
-
-// class YourSolver {
-//     /**
-//      * @return next robot action
-//      */
-//     whatToDo(board: Board) {
-//         tick++;
-//         var hero = board.getMe();
-//         var exit = board.getExits()[0];
-//         /**
-//          * @type {Point|undefined}
-//          */
-//         var shortGold;
-
-//         const hotAround = board.getLasers().some(laser => {
-//             var direction = laser.direction;
-//             if (direction) {
-//                 const dir = DirectionList.get(direction);
-//                 if (dir) {
-//                     var next = dir.change(laser);
-//                     return next.equals(hero);
-//                 }
-//             }
-//         })
-
-//         if (!hotAround && fireTick + 2 <= tick) {
-//             const enemies = board.getOtherHeroes().concat(board.getZombies())
-//                 .map(goldPt => ({ pos: goldPt, distance: getDistance(hero, goldPt) }))
-//                 .sort((a, b) => {
-//                     return a.distance - b.distance;
-//                 }).filter(a => board.hasClearPath(hero, a.pos));
-
-//             const reachable = enemies.find(pt => hero.getX() === pt.pos.getX() || hero.getY() === pt.pos.getY());
-
-//             if (reachable) {
-
-//                 const dir = DirectionList.where(hero, reachable.pos);
-//                 if (dir) {
-//                     fireTick = tick;
-//                     return Command.fire(dir);
-//                 }
-//             }
-//         }
-
-
-//         const distancesToGold = board.getGold().map(goldPt => board.getShortestWay(hero, goldPt)).sort((a, b) => {
-//             return a.length - b.length;
-//         }).filter(a => a.length && a.length < 4)
-
-//         if (exit) {
-//             const way = board.getShortestWay(hero, exit);
-
-//             if (distancesToGold && distancesToGold[0] && distancesToGold[0].length < way.length) {
-//                 shortGold = distancesToGold[0][1];
-//             }
-
-//             if (way && way[1]) {
-//                 const nextStep = shortGold || way[1];
-//                 const dir = DirectionList.where(hero, nextStep);
-
-//                 if (dir) {
-//                     if (board.getBoxes().concat(board.getHoles()).some(hole => nextStep.equals(hole))) {
-//                         return Command.jump(dir);
-//                     }
-//                     return Command.go(dir);
-//                 }
-//             }
-//         }
-
-//         if (distancesToGold.length) {
-//             const nearest = distancesToGold[0];
-//             const nextStep = nearest[1];
-
-//             const dir = DirectionList.where(hero, nextStep);
-
-//             if (dir) {
-//                 if (board.getBoxes().concat(board.getHoles()).some(hole => nextStep.equals(hole))) {
-//                     return Command.jump(dir);
-//                 }
-//                 return Command.go(dir);
-//             }
-//         }
-
-//         const enemiesPath = board.getOtherHeroes().concat(board.getZombies())
-//             .map(goldPt => board.getShortestWay(hero, goldPt)).sort((a, b) => {
-//                 return a.length - b.length;
-//             }).filter(a => a.length > 2)
-
-//         if (enemiesPath.length) {
-//             const nearest = enemiesPath[0];
-//             const nextStep = nearest[1];
-
-//             if (nextStep) {
-//                 const dir = DirectionList.where(hero, nextStep);
-
-//                 if (dir) {
-//                     if (board.getBoxes().concat(board.getHoles()).some(hole => nextStep.equals(hole))) {
-//                         return Command.jump(dir);
-//                     }
-//                     return Command.go(dir);
-//                 }
-//             }
-
-//         }
-
-//         return Command.die();
-//     }
-// }
