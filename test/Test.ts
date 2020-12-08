@@ -69,8 +69,8 @@ const boardGoldLaser2String = '{"offset":{"x":0,"y":0},' +
     '--B------' + // 5
     '---------' + // 4
     '---------' + // 3
-    '---------' + // 2
-    '----→☺---' + // 1
+    '-----X---' + // 2
+    '---→-☺---' + // 1
     '---------",' + // 0
     // 012345678
     '"---------' + // 0
@@ -85,7 +85,7 @@ const boardGoldLaser2String = '{"offset":{"x":0,"y":0},' +
     ']}';
 
 const laserGold2Game = new Game();
-const laserGold2Move = laserGold2Game.tick(JSON.parse(boardGoldLaser2String))[0];
+const laserGold2Move = laserGold2Game.tick(JSON.parse(boardGoldLaser2String), true)[0];
 console.assert(!laserGold2Move.includes('LEFT'))
 
 

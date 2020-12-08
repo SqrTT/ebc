@@ -2,9 +2,7 @@
 
 import connectionEnv from '../env';
 import WSocket from './ws';
-import elementsList from './Element';
-import Board, { LengthToXY } from './Board'
-import DirectionList from './Direction';
+import Board from './Board'
 import Command from './Command';
 import Game, { ServerState } from './Game';
 import { CanvasDrawer } from './CanvasDrawer';

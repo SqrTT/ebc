@@ -82,13 +82,17 @@ class DirectionList {
     static DOWN = D(3, 0, 1, 'DOWN')
     static LEFT = D(0, -1, 0, 'LEFT')
     static RIGHT = D(1, 1, 0, 'RIGHT')
-    static UP_JUMP = D(10, 0, -2, 'ACT(1),UP', 2.0001)
-    static DOWN_JUMP = D(11, 0, 2, 'ACT(1),DOWN', 2.0001)
-    static LEFT_JUMP = D(12, -2, 0, 'ACT(1),LEFT', 2.00001)
-    static RIGHT_JUMP = D(13, 2, 0, 'ACT(1),RIGHT', 2.0001)
+    static UP_JUMP = D(10, 0, -2, 'ACT(1),UP', 2)
+    static DOWN_JUMP = D(11, 0, 2, 'ACT(1),DOWN', 2)
+    static LEFT_JUMP = D(12, -2, 0, 'ACT(1),LEFT', 2)
+    static RIGHT_JUMP = D(13, 2, 0, 'ACT(1),RIGHT', 2)
     static JUMP = D(4, 0, 0, 'ACT(1)')            // jump
     static PULL = D(5, 0, 0, 'ACT(2)')            // pull box
     static FIRE = D(6, 0, 0, 'ACT(3)')            // fire
+    static FIRE_UP = D(14, 0, 0, 'ACT(3),UP')            // fire
+    static FIRE_DOWN = D(15, 0, 0, 'ACT(3),DOWN')            // fire
+    static FIRE_LEFT = D(16, 0, 0, 'ACT(3),LEFT')            // fire
+    static FIRE_RIGHT = D(17, 0, 0, 'ACT(3),RIGHT')            // fire
     static DIE = D(7, 0, 0, 'ACT(0)')            // die
     static STOP = D(8, 0, 0, '')                   // stay
     static get(direction: string) : Direction | null {

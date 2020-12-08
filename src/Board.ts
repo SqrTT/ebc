@@ -110,10 +110,14 @@ export class Player {
     dir: Direction;
     fireTick: number;
     moveTick: number;
+    inAir: boolean;
+    isZombie: boolean = false;
+    isAlive: boolean = true;
     constructor(pt: Point) {
         this.pt = pt;
     }
-    isAfk: boolean
+    hasAmmo: boolean = true;
+    isAfk: boolean = false;
 }
 
 export const calcDepth = 10;
@@ -126,6 +130,7 @@ class Board {
     barriersMap: boolean[][]
     barriers: any;
     lasersTrace: (Direction | null)[][][];
+    lasers: ([Point, Direction])[] = [];
     constructor(board) {
         this.layersString = board.layers;
         this.scannerOffset = board.offset;
@@ -161,6 +166,7 @@ class Board {
         for (const laser of this.getLasersAndReadyMachines()) {
             const dir = laser.direction && DirectionList.get(laser.direction);
             if (dir) {
+                this.lasers.push([laser, dir]);
                 let newL = laser;
                 for (const t of range(0, calcDepth)) {
                     if (!newL.isBad(this.size)) {
@@ -448,19 +454,13 @@ class Board {
             penalty[box.y][box.x] = 10e5;
         }
 
+        for (const hole of this.getHoles()) {
+            penalty[hole.y][hole.x] = 10e9;
+        }
+
         for (const box of this.getZombieStart()) {
             penalty[box.y][box.x] += 2;
         }
-
-        // for (const laser of this.getLasersAndReadyMachines()) {
-        //     const dir = laser.direction && DirectionList.get(laser.direction);
-        //     if (dir) {
-        //         const newL = dir.change(laser);
-        //         if (!newL.isBad(this.size)) {
-        //             penalty[newL.y][newL.x] += 10e9;
-        //         }
-        //     }
-        // }
 
         if (players.length) {
             for (const npc of players) {
@@ -538,7 +538,6 @@ class Board {
 
                 this.barriersMap[y][x] = (
                     element1.type == 'WALL' ||
-                    element1 == elementsList.HOLE ||
                     laserMachineElements.includes(element1)
                 );
 
@@ -576,15 +575,15 @@ class Board {
     isBarrierAt(x, y) {
         return this.barriersMap[x][y];
     }
-    countNear(layer: LAYER_NO, x: number, y: number, element) {
+    countNear(layer: LAYER_NO, x: number, y: number, elements: Element[]) {
         if (pt(x, y).isBad(this.size)) {
             return 0;
         }
         var count = 0;
-        if (this.isAt(layer, x - 1, y, element)) count++;
-        if (this.isAt(layer, x + 1, y, element)) count++;
-        if (this.isAt(layer, x, y - 1, element)) count++;
-        if (this.isAt(layer, x, y + 1, element)) count++;
+        if (this.isAt(layer, x - 1, y, elements)) count++;
+        if (this.isAt(layer, x + 1, y, elements)) count++;
+        if (this.isAt(layer, x, y - 1, elements)) count++;
+        if (this.isAt(layer, x, y + 1, elements)) count++;
         return count;
     }
     getShortestWay(from: Point, to: Point): Point[] {

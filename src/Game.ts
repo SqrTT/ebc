@@ -18,6 +18,37 @@ enum GameState {
     DIED
 };
 
+const potentialMovies = [
+    DirectionList.JUMP,
+    DirectionList.STOP,
+    DirectionList.DOWN,
+    DirectionList.DOWN_JUMP,
+    DirectionList.UP_JUMP,
+    DirectionList.UP,
+    DirectionList.LEFT,
+    DirectionList.LEFT_JUMP,
+    DirectionList.RIGHT,
+    DirectionList.RIGHT_JUMP,
+    DirectionList.FIRE_UP,
+    DirectionList.FIRE_DOWN,
+    DirectionList.FIRE_LEFT,
+    DirectionList.FIRE_RIGHT
+];
+
+const fireDirectionMap = new Map<Direction, Direction>();
+fireDirectionMap.set(DirectionList.FIRE_UP, DirectionList.UP);
+fireDirectionMap.set(DirectionList.FIRE_DOWN, DirectionList.DOWN);
+fireDirectionMap.set(DirectionList.FIRE_LEFT, DirectionList.LEFT);
+fireDirectionMap.set(DirectionList.FIRE_RIGHT, DirectionList.RIGHT);
+
+const potentialZombieMovies = [
+    DirectionList.STOP,
+    DirectionList.DOWN,
+    DirectionList.UP,
+    DirectionList.LEFT,
+    DirectionList.RIGHT
+];
+
 const DEFAULT_OPTIONS = {
     roomSize: 5,
     roundWin: 25,
@@ -83,10 +114,13 @@ class Game {
         this.goldAmountCollected = 0;
         this.players = [];
     }
-    tick(boardJson: ServerState): [string, number[][] | undefined] {
+    tick(boardJson: ServerState, useMiniMax = false): [string, number[][] | undefined] {
         const playerEl = boardJson.layers[1].split('').concat(boardJson.layers[2].split('')).find(char => myRobotElements.includes(char))
 
-
+        if (window.dieOnce) {
+            window.dieOnce = false;
+            return [Command.die(), undefined];
+        }
         if (playerEl) {
             if (ElementsList.ROBOT_LASER.char === playerEl || ElementsList.ROBOT_FALLING.char === playerEl) {
                 this.state = GameState.DIED;
@@ -97,17 +131,14 @@ class Game {
                     this.state = GameState.PLAY;
                     this.reset();
                 }
-                if (window.dieOnce) {
-                    window.dieOnce = false;
-                    return [Command.die(), undefined];
-                }
+
                 this.currentTick++;
                 const currentBoard = new Board(boardJson);
                 if (currentBoard.getExits().some(exit => exit.equals(currentBoard.getMe())) && !currentBoard.get(2, [elementsList.ROBOT_FLYING]).length) {
                     this.reset();
                     return [Command.doNothing(), undefined];
                 }
-                const step = this.move(currentBoard);
+                const step = this.move(currentBoard, useMiniMax);
                 this.previousBoard = currentBoard;
                 return step;
             }
@@ -116,6 +147,149 @@ class Game {
             console.log('No Player?. Do nothing');
 
             return [Command.doNothing(), undefined];
+        }
+    }
+
+    minimax(inBoard: Board) {
+        const players: Player[] = this.players.concat([]);
+        const playersAmount = players.length
+
+        const max = (board: Board, me: Player) => {
+            let maxMoveScore = -Infinity;
+            let bestMove: Direction | undefined;
+
+            for (const moveDirection of potentialMovies) {
+                this.simpleMove(me, moveDirection, board);
+                var [moveScore] = min(board, 0, maxMoveScore, me);
+                this.undoSimpleMove(me, moveDirection, board);
+
+
+                if (moveScore > maxMoveScore) {
+                    maxMoveScore = moveScore;
+                    bestMove = moveDirection;
+                }
+            }
+            return [maxMoveScore, bestMove];
+        }
+
+        const min = (board: Board, playerIndex: number, maxMoveScore: number, me: Player): [number, Direction] => {
+            let minScore = +Infinity;
+            let minMove: Direction = DirectionList.STOP;
+
+            if (playerIndex < playersAmount) {
+                for (const move of (players[playerIndex].isZombie ? potentialZombieMovies : potentialMovies)) {
+                    this.simpleMove(players[playerIndex], move, board);
+
+                    var [value] = min(board, playerIndex + 1, maxMoveScore, me);
+                    this.undoSimpleMove(players[playerIndex], move, board);
+
+                    if (value < maxMoveScore) {
+                        return [-Infinity, DirectionList.STOP];  // cut!
+                    }
+
+                    if (value < minScore) {
+                        minScore = value;
+                    }
+                }
+            } else {
+                let v = 0;
+                players.filter(p => p.isZombie).forEach(z => {
+                    if (!me.inAir && z.pt.equals(me.pt)) {
+                        v += -5;
+                    } else if (players.some(p => !p.isZombie && !p.inAir && p.pt.equals(z.pt))) {
+                        v += 5;
+                    }
+                })
+                let hasLaserReachHer0 = false;
+                board.lasers.forEach(([laserPoint]) => {
+                    if (!me.inAir && laserPoint.equals(me.pt)) {
+                        v += -10;
+                        hasLaserReachHer0 = true;
+                        // me.isAlive = false;
+                    }
+                    players.forEach(p => {
+                        if (!p.inAir && p.pt.equals(laserPoint)) {
+                            v += 10;
+                        }
+                    });
+                })
+               // v += hasLaserReachHer0 ? 0 : 1;
+                return [v, DirectionList.STOP];
+            }
+
+            return [minScore, minMove];
+        }
+        const me = new Player(inBoard.getMe());
+
+
+        me.inAir = inBoard.getAt(2, me.pt.x, me.pt.y).char === '*';
+        me.fireTick = this.firedAtTick;
+        inBoard.lasers = inBoard.lasers.map(([pt, dir]) => [dir.change(pt), dir]); // move forward
+        const result = max(inBoard, me);
+        inBoard.lasers = inBoard.lasers.map(([pt, dir]) => [dir.inverted().change(pt), dir]); // move back
+        return result;
+    }
+    undoSimpleMove(player: Player, move: Direction, board: Board) {
+        const newPos = move.inverted().change(player.pt);
+        if (!board.barriersMap[newPos.y][newPos.x] && board.getBoxes().every(b => !b.equals(newPos))) {
+            if ([
+                DirectionList.JUMP,
+                DirectionList.LEFT_JUMP,
+                DirectionList.RIGHT_JUMP,
+                DirectionList.DOWN_JUMP,
+                DirectionList.UP_JUMP
+            ].includes(move)) {
+                player.inAir = false;
+                player.pt = new Point(
+                    Math.floor(move.dx / move.cost) + player.pt.x,
+                    Math.floor(move.dy / move.cost) + player.pt.y,
+                );
+            } else if ([
+                DirectionList.FIRE_DOWN,
+                DirectionList.FIRE_LEFT,
+                DirectionList.FIRE_RIGHT,
+                DirectionList.FIRE_UP
+            ].includes(move)) {
+                const fd = fireDirectionMap.get(move);
+                if (fd) {
+                    const lm = move.change(player.pt);
+                    board.lasers = board.lasers.filter(l => {
+                        return !(l[0].equals(lm) && l[1] === fd);
+                    });
+                }
+            } else {
+                player.pt = newPos;
+            }
+        }
+    }
+    simpleMove(player: Player, move: Direction, board: Board) {
+        const newPos = move.change(player.pt);
+        if (!board.barriersMap[newPos.y][newPos.x] && board.getBoxes().every(b => !b.equals(newPos))) {
+            if ([
+                DirectionList.JUMP,
+                DirectionList.LEFT_JUMP,
+                DirectionList.RIGHT_JUMP,
+                DirectionList.DOWN_JUMP,
+                DirectionList.UP_JUMP
+            ].includes(move)) {
+                player.inAir = true;
+                player.pt = new Point(
+                    Math.floor(move.dx / move.cost) + player.pt.x,
+                    Math.floor(move.dy / move.cost) + player.pt.y,
+                );
+            } else if ([
+                DirectionList.FIRE_DOWN,
+                DirectionList.FIRE_LEFT,
+                DirectionList.FIRE_RIGHT,
+                DirectionList.FIRE_UP
+            ].includes(move)) {
+                const fd = fireDirectionMap.get(move);
+                if (fd) {
+                    board.lasers.push([newPos, fd]);
+                }
+            } else {
+                player.pt = newPos;
+            }
         }
     }
     checkCollected(board: Board) {
@@ -129,9 +303,13 @@ class Game {
             }
         }
     }
-    move(board: Board): [string, number[][] | undefined] {
+    move(board: Board, useMiniMax = false): [string, number[][] | undefined] {
         this.checkCollected(board);
         this.trackPlayers(board);
+
+        if (useMiniMax) {
+            this.minimax(board);
+        }
 
         const me = board.getMe();
         const scores = makeArray(board.size, board.size, 0);
@@ -144,7 +322,7 @@ class Game {
             && this.noLasersOnPreviousStep(me);
 
         if (isSafe && haveAmmo) {
-            const enemies = board.getOtherLiveHeroes().concat(board.getLiveZombies())
+            const enemies = this.players.filter(p => p.isAfk).map(p => p.pt).concat(board.getLiveZombies())
                 .map(goldPt => ({ pos: goldPt, distance: getDistance(me, goldPt) }))
                 .sort((a, b) => {
                     return a.distance - b.distance;
@@ -160,23 +338,23 @@ class Game {
                 }
             }
 
-            if (this.previousBoard) {
-                const flyRobots = board.get(2, [ElementsList.ROBOT_OTHER_FLYING]);
+            // if (this.previousBoard) {
+            //     const flyRobots = board.get(2, [ElementsList.ROBOT_OTHER_FLYING]);
 
-                for (const flyRobot of flyRobots) {
-                    const robot = this.previousBoard.getNear(1, flyRobot.x, flyRobot.y)
-                        .find(r => r.el === ElementsList.ROBOT_OTHER);
+            //     for (const flyRobot of flyRobots) {
+            //         const robot = this.previousBoard.getNear(1, flyRobot.x, flyRobot.y)
+            //             .find(r => r.el === ElementsList.ROBOT_OTHER);
 
-                    if (robot) {
-                        const nextR = robot.dir.inverted().change(flyRobot);
-                        const nearMe = board.getNear(1, me.x, me.y).find(nearMe => nextR.equals(nearMe.pt));
+            //         if (robot) {
+            //             const nextR = robot.dir.inverted().change(flyRobot);
+            //             const nearMe = board.getNear(1, me.x, me.y).find(nearMe => nextR.equals(nearMe.pt));
 
-                        if (nearMe) {
-                            [Command.fire(nearMe), undefined];
-                        }
-                    }
-                }
-            }
+            //             if (nearMe) {
+            //                 [Command.fire(nearMe), undefined];
+            //             }
+            //         }
+            //     }
+            // }
         }
 
         if (!isSafe) {
@@ -195,11 +373,18 @@ class Game {
             } else {
                 const { distances } = board.bfs(exit.x, exit.y);
                 const exitDistances = golds.map(gold => distances[gold.y][gold.x]).filter(goldDistance => goldDistance < 15);
-                if (!exitDistances.length || this.goldAmountCollected > 20) {
+                if (this.goldAmountCollected > 20) {
                     scores[exit.y][exit.x] += this.options.roundWin + this.goldAmountCollected * 10;
-                } else {
+                } else if (exitDistances.length) {
                     existHaveGold = true;
+                    scores[exit.y][exit.x] += this.options.roundWin + this.goldAmountCollected * 100;
                     board.barriersMap[exit.y][exit.x] = true;
+                } else {
+                    if (distances[me.y][me.x] < 15) {
+                        scores[exit.y][exit.x] += this.options.roundWin + this.goldAmountCollected * 10;
+                    } else {
+                        board.barriersMap[exit.y][exit.x] = true;
+                    }
                 }
             }
             //scores[gold.y][gold.x] += this.options.goldValue + this.options.roundWin * 7 / exitDistances[0];
@@ -210,7 +395,9 @@ class Game {
             }
         }
         for (const gold of golds) {
-            scores[gold.y][gold.x] += this.options.goldValue;
+            if (!gold.equals(me) && !board.getNear(0, gold.x, gold.y).some(n => this.players.some(p => p.pt.equals(n.pt)))) {
+                scores[gold.y][gold.x] += this.options.goldValue;
+            }
         }
 
         for (const unvisited of board.getUnvisited()) {
@@ -223,9 +410,9 @@ class Game {
                     scores[blastY][blastX] += this.options.zombieKill;
                 };
             }
-            for (const player of this.players) {
+            for (const player of this.players.filter(p => p.isAfk)) {
                 for (const [blastX, blastY] of board.blasts(player.pt.x, player.pt.y)) {
-                    scores[blastY][blastX] += player.isAfk ? this.options.playerKill : this.options.playerKill / 4;
+                    scores[blastY][blastX] += (player.isAfk) ? this.options.playerKill : this.options.playerKill / 4;
                 };
             }
         }
@@ -289,10 +476,10 @@ class Game {
                     DirectionList.LEFT,
                     DirectionList.RIGHT
                 ].includes(pDir) && board.isNear(1, me.x, me.y, [elementsList.BOX])) {
-                    return [Command.pull(pDir), distances];
+                    return [Command.pull(pDir), scores];
                 }
 
-                return [pDir.toString(), distances];
+                return [pDir.toString(), scores];
             }
         }
         return [Command.doNothing(), undefined];
@@ -310,7 +497,7 @@ class Game {
                 prevPlayers.splice(prevPlayers.indexOf(playerStays), 1);
                 player.fireTick = playerStays.fireTick;
                 player.moveTick = playerStays.moveTick;
-                player.isAfk = player.moveTick + 3 < tick || player.fireTick + 2 < tick;
+                player.isAfk = this.goldAmountCollected < 11 && (player.moveTick + 4 < tick && player.fireTick + 2 < tick);
                 directionsAround.some(dir => {
                     const elAtPos = board.getAt(1, dir.changeX(her0.x), dir.changeY(her0.y));
                     if ([ElementsList.LASER_DOWN, ElementsList.LASER_LEFT, ElementsList.LASER_UP, ElementsList.LASER_RIGHT].includes(elAtPos) && elAtPos.direction === dir) {
@@ -330,8 +517,15 @@ class Game {
                     player.fireTick = -Infinity;
                 }
             }
+            player.hasAmmo = player.fireTick + 2 < tick;
+            player.inAir = board.getAt(2, her0.x, her0.y).char === '^';
             return player;
-        });
+        }).concat(board.getLiveZombies().map(z => {
+            const zombie = new Player(z);
+            zombie.isAfk = false;
+            zombie.isZombie = true;
+            return zombie;
+        }));
 
         console.log(JSON.parse(JSON.stringify(this.players)));
     }
@@ -370,7 +564,7 @@ class Game {
     }
     noOtherPlayersAround(board: Board) {
         const me = board.getMe();
-        return !directionsAround.some(dir => this.players.some(p => !p.isAfk && dir.change(me).equals(p.pt)))
+        return !directionsAround.some(dir => this.players.some(p => !(p.isAfk) && dir.change(me).equals(p.pt)))
     }
 }
 
