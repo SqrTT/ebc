@@ -150,49 +150,64 @@ class Game {
         }
     }
 
-    minimax(inBoard: Board) {
-        const players: Player[] = this.players.concat([]);
+    isLegalMove(board: Board, pt: Point, dir: Direction) {
+        const newP = dir.change(pt);;
+        return !board.isOutOf(newP.x, newP.y) && !board.barriersMap[newP.y][newP.x];
+    }
+
+    minimax(inBoard: Board, mePoint: Point, players : Player[]) {
         const playersAmount = players.length
 
-        const max = (board: Board, me: Player) => {
+        const max = (board: Board, me: Player, depth = 1): [number, Direction] => {
+            board.lasers = board.lasers.map(([pt, dir]) => [dir.change(pt), dir]); // move forward
+
             let maxMoveScore = -Infinity;
-            let bestMove: Direction | undefined;
+            let bestMove: Direction = DirectionList.JUMP;
 
             for (const moveDirection of potentialMovies) {
-                this.simpleMove(me, moveDirection, board);
-                var [moveScore] = min(board, 0, maxMoveScore, me);
-                this.undoSimpleMove(me, moveDirection, board);
+                if (this.isLegalMove(board, me.pt, moveDirection)) {
+                    this.simpleMove(me, moveDirection, board);
+                    var [moveScore] = min(board, 0, maxMoveScore, me, depth);
+                    this.undoSimpleMove(me, moveDirection, board);
 
 
-                if (moveScore > maxMoveScore) {
-                    maxMoveScore = moveScore;
-                    bestMove = moveDirection;
+                    if (moveScore > maxMoveScore) {
+                        maxMoveScore = moveScore;
+                        bestMove = moveDirection;
+                    }
                 }
             }
+            board.lasers = board.lasers.map(([pt, dir]) => [dir.inverted().change(pt), dir]); // move back
+
             return [maxMoveScore, bestMove];
         }
 
-        const min = (board: Board, playerIndex: number, maxMoveScore: number, me: Player): [number, Direction] => {
+        const min = (board: Board, playerIndex: number, maxMoveScore: number, me: Player, depth = 1): [number, Direction] => {
             let minScore = +Infinity;
             let minMove: Direction = DirectionList.STOP;
 
             if (playerIndex < playersAmount) {
                 for (const move of (players[playerIndex].isZombie ? potentialZombieMovies : potentialMovies)) {
-                    this.simpleMove(players[playerIndex], move, board);
+                    if (this.isLegalMove(board, players[playerIndex].pt, move)) {
 
-                    var [value] = min(board, playerIndex + 1, maxMoveScore, me);
-                    this.undoSimpleMove(players[playerIndex], move, board);
+                        this.simpleMove(players[playerIndex], move, board);
 
-                    if (value < maxMoveScore) {
-                        return [-Infinity, DirectionList.STOP];  // cut!
-                    }
+                        var [value] = min(board, playerIndex + 1, maxMoveScore, me, depth);
+                        this.undoSimpleMove(players[playerIndex], move, board);
 
-                    if (value < minScore) {
-                        minScore = value;
+                        if (value < maxMoveScore) {
+                            return [-Infinity, DirectionList.STOP];  // cut!
+                        }
+
+                        if (value < minScore) {
+                            minScore = value;
+                        }
                     }
                 }
             } else {
                 let v = 0;
+
+                // zombie can kill players
                 players.filter(p => p.isZombie).forEach(z => {
                     if (!me.inAir && z.pt.equals(me.pt)) {
                         v += -5;
@@ -201,6 +216,7 @@ class Game {
                     }
                 })
                 let hasLaserReachHer0 = false;
+                // other payers can be killed only by laser
                 board.lasers.forEach(([laserPoint]) => {
                     if (!me.inAir && laserPoint.equals(me.pt)) {
                         v += -10;
@@ -213,46 +229,60 @@ class Game {
                         }
                     });
                 })
-               // v += hasLaserReachHer0 ? 0 : 1;
+                for (const gold of board.getGold()) {
+                    if (!me.inAir && gold.equals(me.pt)) {
+                        v += 10;
+                    }
+                    players.forEach(p => {
+                        if (!p.inAir && p.pt.equals(gold)) {
+                            v += -10;
+                        }
+                    });
+                }
+
+                if (depth > 0 && !hasLaserReachHer0) {
+                    return max(board, me, depth - 1);
+                }
+                // v += hasLaserReachHer0 ? 0 : 1;
                 return [v, DirectionList.STOP];
             }
 
             return [minScore, minMove];
         }
-        const me = new Player(inBoard.getMe());
 
+
+        const me = new Player(mePoint);
 
         me.inAir = inBoard.getAt(2, me.pt.x, me.pt.y).char === '*';
         me.fireTick = this.firedAtTick;
-        inBoard.lasers = inBoard.lasers.map(([pt, dir]) => [dir.change(pt), dir]); // move forward
-        const result = max(inBoard, me);
-        inBoard.lasers = inBoard.lasers.map(([pt, dir]) => [dir.inverted().change(pt), dir]); // move back
+        const result = max(inBoard, me, 0);
         return result;
     }
     undoSimpleMove(player: Player, move: Direction, board: Board) {
-        const newPos = move.inverted().change(player.pt);
-        if (!board.barriersMap[newPos.y][newPos.x] && board.getBoxes().every(b => !b.equals(newPos))) {
+        const invertedMove = move.inverted();
+        const newPos = invertedMove.change(player.pt);
+        if (!board.getBoxesMap().get(`${newPos.x}-${newPos.y}`)) {
             if ([
                 DirectionList.JUMP,
                 DirectionList.LEFT_JUMP,
                 DirectionList.RIGHT_JUMP,
                 DirectionList.DOWN_JUMP,
                 DirectionList.UP_JUMP
-            ].includes(move)) {
+            ].includes(invertedMove)) {
                 player.inAir = false;
                 player.pt = new Point(
-                    Math.floor(move.dx / move.cost) + player.pt.x,
-                    Math.floor(move.dy / move.cost) + player.pt.y,
+                    invertedMove.dx / Math.floor(invertedMove.cost) + player.pt.x,
+                    invertedMove.dy / Math.floor(invertedMove.cost) + player.pt.y,
                 );
             } else if ([
                 DirectionList.FIRE_DOWN,
                 DirectionList.FIRE_LEFT,
                 DirectionList.FIRE_RIGHT,
                 DirectionList.FIRE_UP
-            ].includes(move)) {
+            ].includes(invertedMove)) {
                 const fd = fireDirectionMap.get(move);
                 if (fd) {
-                    const lm = move.change(player.pt);
+                    const lm = fd.change(player.pt);
                     board.lasers = board.lasers.filter(l => {
                         return !(l[0].equals(lm) && l[1] === fd);
                     });
@@ -264,7 +294,7 @@ class Game {
     }
     simpleMove(player: Player, move: Direction, board: Board) {
         const newPos = move.change(player.pt);
-        if (!board.barriersMap[newPos.y][newPos.x] && board.getBoxes().every(b => !b.equals(newPos))) {
+        if (!board.getBoxesMap().get(`${newPos.x}-${newPos.y}`)) {
             if ([
                 DirectionList.JUMP,
                 DirectionList.LEFT_JUMP,
@@ -274,8 +304,8 @@ class Game {
             ].includes(move)) {
                 player.inAir = true;
                 player.pt = new Point(
-                    Math.floor(move.dx / move.cost) + player.pt.x,
-                    Math.floor(move.dy / move.cost) + player.pt.y,
+                    move.dx / Math.floor(move.cost) + player.pt.x,
+                    move.dy / Math.floor(move.cost) + player.pt.y,
                 );
             } else if ([
                 DirectionList.FIRE_DOWN,
@@ -285,7 +315,7 @@ class Game {
             ].includes(move)) {
                 const fd = fireDirectionMap.get(move);
                 if (fd) {
-                    board.lasers.push([newPos, fd]);
+                    board.lasers.push([fd.change(player.pt), fd]);
                 }
             } else {
                 player.pt = newPos;
@@ -303,15 +333,19 @@ class Game {
             }
         }
     }
-    move(board: Board, useMiniMax = false): [string, number[][] | undefined] {
+    move(board: Board, useMiniMax = true): [string, number[][] | undefined] {
         this.checkCollected(board);
         this.trackPlayers(board);
+        const me = board.getMe();
 
-        if (useMiniMax) {
-            this.minimax(board);
+        const playersAround = this.players.filter(p => getDistance(me, p.pt) < 3);
+        if (useMiniMax && playersAround.length && playersAround.length < 3) {
+            console.log(`Minimax ${playersAround.length}`);
+            const [score, direction] = this.minimax(board, me, playersAround);
+
+            return [direction.toString(), undefined];
         }
 
-        const me = board.getMe();
         const scores = makeArray(board.size, board.size, 0);
 
         const haveAmmo = this.currentTick >= this.firedAtTick + this.options.gunReload;
@@ -407,12 +441,12 @@ class Game {
         if (haveAmmo) {
             for (const zombie of board.getLiveZombies()) {
                 for (const [blastX, blastY] of board.blasts(zombie.x, zombie.y)) {
-                    scores[blastY][blastX] += this.options.zombieKill;
+                    scores[blastY][blastX] += this.options.zombieKill / 5;
                 };
             }
             for (const player of this.players.filter(p => p.isAfk)) {
                 for (const [blastX, blastY] of board.blasts(player.pt.x, player.pt.y)) {
-                    scores[blastY][blastX] += (player.isAfk) ? this.options.playerKill : this.options.playerKill / 4;
+                    scores[blastY][blastX] += (player.isAfk) ? this.options.playerKill / 5 : 0;
                 };
             }
         }

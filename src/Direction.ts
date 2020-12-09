@@ -21,9 +21,17 @@ export class Direction {
     inverted() {
         switch (this) {
             case DirectionList.UP: return DirectionList.DOWN;
+            case DirectionList.FIRE_UP: return DirectionList.FIRE_DOWN;
+            case DirectionList.UP_JUMP: return DirectionList.DOWN_JUMP;
             case DirectionList.DOWN: return DirectionList.UP;
+            case DirectionList.FIRE_DOWN: return DirectionList.FIRE_UP;
+            case DirectionList.DOWN_JUMP: return DirectionList.UP_JUMP;
             case DirectionList.LEFT: return DirectionList.RIGHT;
+            case DirectionList.FIRE_LEFT: return DirectionList.FIRE_RIGHT;
+            case DirectionList.LEFT_JUMP: return DirectionList.RIGHT_JUMP;
             case DirectionList.RIGHT: return DirectionList.LEFT;
+            case DirectionList.FIRE_RIGHT: return DirectionList.FIRE_LEFT;
+            case DirectionList.RIGHT_JUMP: return DirectionList.LEFT_JUMP;
             default: return DirectionList.STOP;
         }
     }
@@ -82,10 +90,10 @@ class DirectionList {
     static DOWN = D(3, 0, 1, 'DOWN')
     static LEFT = D(0, -1, 0, 'LEFT')
     static RIGHT = D(1, 1, 0, 'RIGHT')
-    static UP_JUMP = D(10, 0, -2, 'ACT(1),UP', 2)
-    static DOWN_JUMP = D(11, 0, 2, 'ACT(1),DOWN', 2)
-    static LEFT_JUMP = D(12, -2, 0, 'ACT(1),LEFT', 2)
-    static RIGHT_JUMP = D(13, 2, 0, 'ACT(1),RIGHT', 2)
+    static UP_JUMP = D(10, 0, -2, 'ACT(1),UP', 2.0001)
+    static DOWN_JUMP = D(11, 0, 2, 'ACT(1),DOWN', 2.0001)
+    static LEFT_JUMP = D(12, -2, 0, 'ACT(1),LEFT', 2.0001)
+    static RIGHT_JUMP = D(13, 2, 0, 'ACT(1),RIGHT', 2.0001)
     static JUMP = D(4, 0, 0, 'ACT(1)')            // jump
     static PULL = D(5, 0, 0, 'ACT(2)')            // pull box
     static FIRE = D(6, 0, 0, 'ACT(3)')            // fire

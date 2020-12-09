@@ -131,6 +131,9 @@ class Board {
     barriers: any;
     lasersTrace: (Direction | null)[][][];
     lasers: ([Point, Direction])[] = [];
+    private _boxes: Point[];
+    private _boxesMap: Map<string, boolean>;
+    private _gold: Point[];
     constructor(board) {
         this.layersString = board.layers;
         this.scannerOffset = board.offset;
@@ -304,10 +307,28 @@ class Board {
         return this.get(LAYER1, wallElements);
     }
     getBoxes() {
-        return this.get(LAYER2, [elementsList.BOX]);
+        if (!this._boxes) {
+            this._boxes = this.get(LAYER2, [elementsList.BOX]);
+        }
+        return this._boxes;
+    }
+
+    getBoxesMap() {
+        if (!this._boxesMap) {
+            this._boxesMap = new Map<string, boolean>();
+
+
+            this.getBoxes().forEach(b => {
+                this._boxesMap.set(`${b.x}-${b.y}`, true);
+            });
+        }
+        return this._boxesMap;
     }
     getGold() {
-        return this.get(LAYER1, [elementsList.GOLD]);
+        if (!this._gold) {
+            this._gold = this.get(LAYER1, [elementsList.GOLD]);
+        }
+        return this._gold;
     }
     getStarts() {
         return this.get(LAYER1, [elementsList.START]);
