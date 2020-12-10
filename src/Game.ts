@@ -155,7 +155,7 @@ class Game {
         return !board.isOutOf(newP.x, newP.y) && !board.barriersMap[newP.y][newP.x];
     }
 
-    minimax(inBoard: Board, mePoint: Point, players : Player[]) {
+    minimax(inBoard: Board, mePoint: Point, players : Player[], distances: number[][]) {
         const playersAmount = players.length
 
         const max = (board: Board, me: Player, depth = 1): [number, Direction] => {
@@ -195,9 +195,9 @@ class Game {
                         var [value] = min(board, playerIndex + 1, maxMoveScore, me, depth);
                         this.undoSimpleMove(players[playerIndex], move, board);
 
-                        if (value < maxMoveScore) {
-                            return [-Infinity, DirectionList.STOP];  // cut!
-                        }
+                        // if (value < maxMoveScore) {
+                        //     return [-Infinity, DirectionList.STOP];  // cut!
+                        // }
 
                         if (value < minScore) {
                             minScore = value;
@@ -205,7 +205,7 @@ class Game {
                     }
                 }
             } else {
-                let v = 0;
+                let v = -distances[me.pt.y][me.pt.x];
 
                 // zombie can kill players
                 players.filter(p => p.isZombie).forEach(z => {
@@ -259,9 +259,10 @@ class Game {
         return result;
     }
     undoSimpleMove(player: Player, move: Direction, board: Board) {
-        const invertedMove = move.inverted();
-        const newPos = invertedMove.change(player.pt);
-        if (!board.getBoxesMap().get(`${newPos.x}-${newPos.y}`)) {
+        const new2Pos = move.change(player.pt);
+        if (!board.getBoxesMap().get(`${new2Pos.x}-${new2Pos.y}`)) {
+            const invertedMove = move.inverted();
+            const newPos = invertedMove.change(player.pt);
             if ([
                 DirectionList.JUMP,
                 DirectionList.LEFT_JUMP,
@@ -338,16 +339,12 @@ class Game {
         this.trackPlayers(board);
         const me = board.getMe();
 
-        const playersAround = this.players.filter(p => getDistance(me, p.pt) < 3);
-        if (useMiniMax && playersAround.length && playersAround.length < 3) {
-            console.log(`Minimax ${playersAround.length}`);
-            const [score, direction] = this.minimax(board, me, playersAround);
+        console.log(`gold ${this.goldAmountCollected}`);
 
-            return [direction.toString(), undefined];
-        }
+        const playersAround = this.players.filter(p => getDistance(me, p.pt) < 3);
+        const isMiniMaxActive = useMiniMax && playersAround.length && playersAround.length < 3;
 
         const scores = makeArray(board.size, board.size, 0);
-
         const haveAmmo = this.currentTick >= this.firedAtTick + this.options.gunReload;
 
         const isSafe = this.noLasersAround(me, board)
@@ -355,8 +352,30 @@ class Game {
             && this.noOtherPlayersAround(board)
             && this.noLasersOnPreviousStep(me);
 
-        if (isSafe && haveAmmo) {
-            const enemies = this.players.filter(p => p.isAfk).map(p => p.pt).concat(board.getLiveZombies())
+        if (!isMiniMaxActive && isSafe && haveAmmo) {
+            if (this.previousBoard) {
+                const flyRobots = board.get(2, [ElementsList.ROBOT_OTHER_FLYING]);
+
+                for (const flyRobot of flyRobots) {
+                    const robot = this.previousBoard.getNear(1, flyRobot.x, flyRobot.y)
+                        .find(r => r.el === ElementsList.ROBOT_OTHER);
+
+                    if (robot) {
+                        const dir = DirectionList.where(robot, flyRobot);
+
+                        if (dir) {
+                            const nextR = dir.change(flyRobot);
+                            const nearMe = board.getNear(1, me.x, me.y).find(nearMe => nextR.equals(nearMe.pt));
+
+                            if (nearMe) {
+                                return [Command.fire(nearMe.dir), undefined];
+                            }
+                        }
+                    }
+                }
+            }
+
+            const enemies = this.players.map(p => p.pt).concat(board.getLiveZombies())
                 .map(goldPt => ({ pos: goldPt, distance: getDistance(me, goldPt) }))
                 .sort((a, b) => {
                     return a.distance - b.distance;
@@ -371,24 +390,6 @@ class Game {
                     return [Command.fire(dir), undefined];
                 }
             }
-
-            // if (this.previousBoard) {
-            //     const flyRobots = board.get(2, [ElementsList.ROBOT_OTHER_FLYING]);
-
-            //     for (const flyRobot of flyRobots) {
-            //         const robot = this.previousBoard.getNear(1, flyRobot.x, flyRobot.y)
-            //             .find(r => r.el === ElementsList.ROBOT_OTHER);
-
-            //         if (robot) {
-            //             const nextR = robot.dir.inverted().change(flyRobot);
-            //             const nearMe = board.getNear(1, me.x, me.y).find(nearMe => nextR.equals(nearMe.pt));
-
-            //             if (nearMe) {
-            //                 [Command.fire(nearMe), undefined];
-            //             }
-            //         }
-            //     }
-            // }
         }
 
         if (!isSafe) {
@@ -402,32 +403,33 @@ class Game {
         const golds = board.getGold();
         let existHaveGold = false;
         for (const exit of exits) {
-            if (!golds.length) {
-                scores[exit.y][exit.x] += this.options.roundWin;
-            } else {
+            scores[exit.y][exit.x] += this.options.roundWin;
+            if (golds.length) {
                 const { distances } = board.bfs(exit.x, exit.y);
-                const exitDistances = golds.map(gold => distances[gold.y][gold.x]).filter(goldDistance => goldDistance < 15);
-                if (this.goldAmountCollected > 20) {
-                    scores[exit.y][exit.x] += this.options.roundWin + this.goldAmountCollected * 10;
-                } else if (exitDistances.length) {
-                    existHaveGold = true;
-                    scores[exit.y][exit.x] += this.options.roundWin + this.goldAmountCollected * 100;
-                    board.barriersMap[exit.y][exit.x] = true;
-                } else {
-                    if (distances[me.y][me.x] < 15) {
-                        scores[exit.y][exit.x] += this.options.roundWin + this.goldAmountCollected * 10;
-                    } else {
-                        board.barriersMap[exit.y][exit.x] = true;
-                    }
+
+                for (const gold of golds) {
+                    const dist = distances[gold.y][gold.x];
+
+                    scores[gold.y][gold.x] += 25 * 10 / dist;
                 }
+
+                // if (this.goldAmountCollected > 20) {
+                //     scores[exit.y][exit.x] += this.options.roundWin + this.goldAmountCollected * 10;
+                // } else if (exitDistances.length) {
+                //     existHaveGold = true;
+                //     scores[exit.y][exit.x] += this.options.roundWin + this.goldAmountCollected * 100;
+                //     board.barriersMap[exit.y][exit.x] = true;
+                // } else {
+                //     if (distances[me.y][me.x] < 15) {
+                //         scores[exit.y][exit.x] += this.options.roundWin + this.goldAmountCollected * 10;
+                //     } else {
+                //         board.barriersMap[exit.y][exit.x] = true;
+                //     }
+                // }
             }
             //scores[gold.y][gold.x] += this.options.goldValue + this.options.roundWin * 7 / exitDistances[0];
         }
-        if (!existHaveGold) {
-            for (const exit of exits) {
-                scores[exit.y][exit.x] += this.options.roundWin + this.goldAmountCollected * 10;
-            }
-        }
+
         for (const gold of golds) {
             if (!gold.equals(me) && !board.getNear(0, gold.x, gold.y).some(n => this.players.some(p => p.pt.equals(n.pt)))) {
                 scores[gold.y][gold.x] += this.options.goldValue;
@@ -438,15 +440,15 @@ class Game {
             scores[unvisited.y][unvisited.x] += 30;
         }
 
-        if (haveAmmo) {
+        if (!isMiniMaxActive && haveAmmo) {
             for (const zombie of board.getLiveZombies()) {
                 for (const [blastX, blastY] of board.blasts(zombie.x, zombie.y)) {
                     scores[blastY][blastX] += this.options.zombieKill / 5;
                 };
             }
-            for (const player of this.players.filter(p => p.isAfk)) {
+            for (const player of this.players) {
                 for (const [blastX, blastY] of board.blasts(player.pt.x, player.pt.y)) {
-                    scores[blastY][blastX] += (player.isAfk) ? this.options.playerKill / 5 : 0;
+                    scores[blastY][blastX] += (player.isAfk) ? this.options.playerKill : this.options.playerKill / 2;
                 };
             }
         }
@@ -481,6 +483,15 @@ class Game {
             }
         }
 
+        if (isMiniMaxActive) {
+            const {distances} = board.bfs(tx, ty);
+            console.log(`Minimax ${playersAround.length}`);
+            // console.table(target);
+            const [score, direction] = this.minimax(board, me, playersAround, distances);
+
+            return [direction.toString(), undefined];
+        }
+
         if (best < 0) {
             return [Command.die(), undefined];
         } else if (tx && ty) {
@@ -499,8 +510,6 @@ class Game {
                     return [Command.die(), distances];
                 }
             }
-
-            console.log(`gold ${this.goldAmountCollected} ${pDir}`);
 
 
             if (pDir) {
@@ -560,8 +569,6 @@ class Game {
             zombie.isZombie = true;
             return zombie;
         }));
-
-        console.log(JSON.parse(JSON.stringify(this.players)));
     }
     noLasersOnPreviousStep(me: Point) {
         if (this.previousBoard) {

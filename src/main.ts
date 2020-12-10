@@ -79,7 +79,7 @@ let cumulativeLevel1 = [["#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", 
 //     return cumulativeLevel1;
 // }
 
-//var cumulativeLevel1 = makeArray(50, 50, '#')
+var cumulativeLevel2 = makeArray(bigBoardSize, bigBoardSize, '#')
 
 
 var pressed = {};
@@ -103,6 +103,10 @@ var processBoard = function (boardString: string) {
     const boardJson = JSON.parse(boardString.replace('board=', '')) as ServerState;
     const size = Math.sqrt(boardJson.layers[0].length);
 
+    if (size < 19) {
+        cumulativeLevel1 = makeArray(bigBoardSize, bigBoardSize, '#');
+    }
+
     if (boardString.includes('☻')) {
         console.error({prevBoard, boardString, currentGame: JSON.parse(JSON.stringify(currentGame))});
         console.error(new Board(JSON.parse(prevBoard.replace('board=', ''))).toString());
@@ -110,26 +114,37 @@ var processBoard = function (boardString: string) {
     }
     prevBoard = boardString;
 
-    const level2Board = makeArray(bigBoardSize, bigBoardSize, '-');
+    //const level2Board = makeArray(bigBoardSize, bigBoardSize, '-');
     const level3Board = makeArray(bigBoardSize, bigBoardSize, '-');
 
     const layer1Orig = chunkArray(boardJson.layers[0].split(''), size);
     const layer2Orig = chunkArray(boardJson.layers[1].split(''), size);
     const layer3Orig = chunkArray(boardJson.layers[2].split(''), size);
 
+    let heroX;
+    let heroY;
     for (var x = 0; x < size; x++) {
         for (var y = 0; y < size; y++) {
             const offsetX = x + boardJson.offset.x;
             const offsetY = y + size - boardJson.offset.y;
 
             cumulativeLevel1[offsetY][offsetX] = layer1Orig[y][x];
-            level2Board[offsetY][offsetX] = layer2Orig[y][x];
+            cumulativeLevel2[offsetY][offsetX] = layer2Orig[y][x];
             level3Board[offsetY][offsetX] = layer3Orig[y][x];
+            if (cumulativeLevel2[offsetY][offsetX] === '☺') {
+                heroX = offsetX;
+                heroY = offsetY;
+            }
         }
     }
     boardJson.layers[0] = cumulativeLevel1.map(l => l.join('')).join('');
-    boardJson.layers[1] = level2Board.map(l => l.join('')).join('');
+    boardJson.layers[1] = cumulativeLevel2.map(l => l.join('')).join('');
     boardJson.layers[2] = level3Board.map(l => l.join('')).join('');
+
+    if (heroX && heroY) {
+        cumulativeLevel2[heroY][heroX] = '-';
+    }
+
 
     boardJson.heroPosition.x += boardJson.offset.x;
     boardJson.heroPosition.y = size - boardJson.heroPosition.y + size - boardJson.offset.y - 1;

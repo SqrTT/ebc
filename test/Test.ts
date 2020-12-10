@@ -50,6 +50,45 @@ var assertEquals = function (expected, actual) {
     }
 }
 
+const boardGoldLaser3String = '{"offset":{"x":0,"y":0},' +
+    '"heroPosition":{"x":6,"1":6},' +
+    '"layers":["' +
+    '╔═══════┐' + // 8
+    '║.......│' + // 7
+    '║.......│' + // 6
+    '║.......│' + // 5
+    '║.......│' + // 4
+    '║.......│' + // 3
+    '║.......│' + // 2
+    '║..$....│' + // 1
+    '└───────┘",' + // 0
+    // 012345678
+    '"---------' + // 8
+    '---------' + // 7
+    '---------' + // 6
+    '--B------' + // 5
+    '----BBB--' + // 4
+    '---BBBBB-' + // 3
+    '---BBXBB-' + // 2
+    '------☺--' + // 1
+    '---------",' + // 0
+    // 012345678
+    '"---------' + // 0
+    '---------' + // 1
+    '---------' + // 2
+    '---------' + // 3
+    '---------' + // 4
+    '---------' + // 5
+    '---------' + // 6
+    '---------' + // 7
+    '---------"' + // 8
+    ']}';
+
+const laserGold3Game = new Game();
+const laserGold3Move = laserGold3Game.tick(JSON.parse(boardGoldLaser3String), true)[0];
+console.assert(laserGold3Move.includes('ACT(3),LEFT'))
+
+
 const boardGoldLaser2String = '{"offset":{"x":0,"y":0},' +
     '"heroPosition":{"x":6,"1":6},' +
     '"layers":["' +
@@ -86,7 +125,7 @@ const boardGoldLaser2String = '{"offset":{"x":0,"y":0},' +
 
 const laserGold2Game = new Game();
 const laserGold2Move = laserGold2Game.tick(JSON.parse(boardGoldLaser2String), true)[0];
-console.assert(!laserGold2Move.includes('LEFT'))
+console.assert(laserGold2Move.includes('ACT(1),LEFT'))
 
 
 

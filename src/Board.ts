@@ -483,8 +483,15 @@ class Board {
             penalty[box.y][box.x] += 2;
         }
 
+        for (const exit of this.getExits()) {
+            penalty[exit.y][exit.x] += 2;// make hero jump over exit if exit is not target
+        }
+
         if (players.length) {
             for (const npc of players) {
+                if (Math.abs(fromX - npc.pt.x) <= 1 && Math.abs(fromY - npc.pt.y) <= 1) {
+                    penalty[npc.pt.y][npc.pt.x] += npc.isAfk ? 0 : 10;
+                }
                 for (const [x, y] of this.blasts(npc.pt.x, npc.pt.y, 2)) {
                     penalty[y][x] += npc.isAfk ? 0 : 10;
                 }
