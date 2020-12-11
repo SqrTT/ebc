@@ -32,6 +32,7 @@ export class Direction {
             case DirectionList.RIGHT: return DirectionList.LEFT;
             case DirectionList.FIRE_RIGHT: return DirectionList.FIRE_LEFT;
             case DirectionList.RIGHT_JUMP: return DirectionList.LEFT_JUMP;
+            case DirectionList.JUMP: return DirectionList.JUMP;
             default: return DirectionList.STOP;
         }
     }
@@ -85,6 +86,9 @@ function D(index: number, dx: number, dy: number, name: string, cost = 1) {
     return new Direction(index, dx, dy, name, cost);
 };
 
+const directionJumpMap = new Map<Direction, Direction>();
+
+
 class DirectionList {
     static UP = D(2, 0, -1, 'UP')
     static DOWN = D(3, 0, 1, 'DOWN')
@@ -117,6 +121,10 @@ class DirectionList {
             }
         }
         return null;
+    }
+    static jumpDirection(dir: Direction) {
+        return directionJumpMap.get(dir) || DirectionList.STOP;
+
     }
     static values = function () {
         return [DirectionList.UP, DirectionList.DOWN, DirectionList.LEFT, DirectionList.RIGHT, DirectionList.JUMP, DirectionList.PULL, DirectionList.FIRE, DirectionList.DIE, DirectionList.STOP];
@@ -151,5 +159,10 @@ class DirectionList {
     }
 };
 
+directionJumpMap.set(DirectionList.JUMP, DirectionList.JUMP);
+directionJumpMap.set(DirectionList.LEFT_JUMP, DirectionList.LEFT);
+directionJumpMap.set(DirectionList.RIGHT_JUMP, DirectionList.RIGHT);
+directionJumpMap.set(DirectionList.UP_JUMP, DirectionList.UP);
+directionJumpMap.set(DirectionList.DOWN_JUMP, DirectionList.DOWN);
 
 export default DirectionList;

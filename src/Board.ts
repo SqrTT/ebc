@@ -134,6 +134,7 @@ class Board {
     private _boxes: Point[];
     private _boxesMap: Map<string, boolean>;
     private _gold: Point[];
+    private _holesMap: Map<string, boolean>;
     constructor(board) {
         this.layersString = board.layers;
         this.scannerOffset = board.offset;
@@ -324,6 +325,17 @@ class Board {
         }
         return this._boxesMap;
     }
+    getHolesMap() {
+        if (!this._holesMap) {
+            this._holesMap = new Map<string, boolean>();
+
+
+            this.getHoles().forEach(b => {
+                this._holesMap.set(`${b.x}-${b.y}`, true);
+            });
+        }
+        return this._holesMap;
+    }
     getGold() {
         if (!this._gold) {
             this._gold = this.get(LAYER1, [elementsList.GOLD]);
@@ -465,7 +477,7 @@ class Board {
     isOutOf(x: number, y: number) {
         return (x < 0 || y < 0 || x >= this.size || y >= this.size);
     }
-    bfs(fromX = this.getMe().x, fromY = this.getMe().y, players: Player[] = []) {
+    bfs(fromX = this.getMe().x, fromY = this.getMe().y, players: Player[] = [], forMinimax = false) {
         const distances = makeArray(this.size, this.size, +Infinity);
         const parent = makeArray<[number, number, number, Direction] | null>(this.size, this.size, null);
         const penalty = makeArray(this.size, this.size, 0);
@@ -482,10 +494,18 @@ class Board {
         for (const box of this.getZombieStart()) {
             penalty[box.y][box.x] += 2;
         }
+        for (const lm of this.getLaserMachines()) {
+            const machine = this.getAt(0, lm.x, lm.y);
+            const nextOfMachine = machine?.direction?.change(lm);
+            if (nextOfMachine) {
+                penalty[nextOfMachine.y][nextOfMachine.x] += 2;
+            }
+        }
 
         for (const exit of this.getExits()) {
-            penalty[exit.y][exit.x] += 2;// make hero jump over exit if exit is not target
+            penalty[exit.y][exit.x] += 5;// make hero jump over exit if exit is not target
         }
+        const neatPlayerMap = new Map<string, boolean>();
 
         if (players.length) {
             for (const npc of players) {
@@ -494,6 +514,9 @@ class Board {
                 }
                 for (const [x, y] of this.blasts(npc.pt.x, npc.pt.y, 2)) {
                     penalty[y][x] += npc.isAfk ? 0 : 10;
+                    if (!npc.isAfk) {
+                        neatPlayerMap.set(`${x}-${y}`, true);
+                    }
                 }
             }
         } else {
@@ -527,10 +550,16 @@ class Board {
                         continue;
                     } else if (this.barriersMap[yy][xx]) {
                         continue;
+                    } else if (dir.cost <= 1 && players.some(p => p.pt.x === xx && yy === p.pt.y)) {
+                        // don't allow direct move to other player
+                        continue;
+                    } else if (dir.cost > 1 && neatPlayerMap.get(`${xx}-${yy}`)) {
+                        // don't allow jump near other player
+                        continue;
                     }
 
                     var tt = time + dir.cost;
-                    var lDir = this.lasersTrace[Math.min(Math.floor(tt -1), calcDepth - 1)][yy][xx];
+                    var lDir = this.lasersTrace[Math.min(Math.floor(tt - 1), calcDepth - 1)][yy][xx];
 
                     if (lDir) {
                         if (lDir.changeX(xx) === posX && lDir.changeY(yy) === posY) {

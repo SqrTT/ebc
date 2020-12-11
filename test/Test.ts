@@ -50,6 +50,84 @@ var assertEquals = function (expected, actual) {
     }
 }
 
+const tests: (() => void)[] = [
+    function () {
+        const prevBoard = '{"offset":{"x":0,"y":0},' +
+            '"heroPosition":{"x":6,"1":6},' +
+            '"layers":["' +
+            '╔═══════┐' + // 8
+            '║.......│' + // 7
+            '║.......│' + // 6
+            '║.......│' + // 5
+            '║.......│' + // 4
+            '║.......│' + // 3
+            '║.......│' + // 2
+            '║..$....│' + // 1
+            '└───────┘",' + // 0
+            // 012345678
+            '"---------' + // 8
+            '---------' + // 7
+            '---------' + // 6
+            '--B------' + // 5
+            '----B-B--' + // 4
+            '---BBXBB-' + // 3
+            '---BB-BB-' + // 2
+            '------☺--' + // 1
+            '---------",' + // 0
+            // 012345678
+            '"---------' + // 0
+            '---------' + // 1
+            '---------' + // 2
+            '---------' + // 3
+            '---------' + // 4
+            '---------' + // 5
+            '---------' + // 6
+            '---------' + // 7
+            '---------"' + // 8
+            ']}';
+
+        const currentBoard = '{"offset":{"x":0,"y":0},' +
+            '"heroPosition":{"x":6,"1":6},' +
+            '"layers":["' +
+            '╔═══════┐' + // 8
+            '║.......│' + // 7
+            '║.......│' + // 6
+            '║.......│' + // 5
+            '║.......│' + // 4
+            '║.......│' + // 3
+            '║.......│' + // 2
+            '║..$....│' + // 1
+            '└───────┘",' + // 0
+            // 012345678
+            '"---------' + // 8
+            '---------' + // 7
+            '---------' + // 6
+            '--B------' + // 5
+            '----B-B--' + // 4
+            '---BB-BB-' + // 3
+            '---BB-BB-' + // 2
+            '------☺--' + // 1
+            '---------",' + // 0
+            // 012345678
+            '"---------' + // 0
+            '---------' + // 1
+            '---------' + // 2
+            '---------' + // 3
+            '---------' + // 4
+            '---------' + // 5
+            '-----^---' + // 6
+            '---------' + // 7
+            '---------"' + // 8
+            ']}';
+
+        const laserGold3Game = new Game();
+        laserGold3Game.tick(JSON.parse(prevBoard));
+        const laserGold3Move = laserGold3Game.tick(JSON.parse(currentBoard))[0];
+        console.assert(laserGold3Move.includes('ACT(3),LEFT'))
+    }];
+
+tests.reverse().forEach(fn => fn())
+
 const boardGoldLaser3String = '{"offset":{"x":0,"y":0},' +
     '"heroPosition":{"x":6,"1":6},' +
     '"layers":["' +
@@ -85,8 +163,8 @@ const boardGoldLaser3String = '{"offset":{"x":0,"y":0},' +
     ']}';
 
 const laserGold3Game = new Game();
-const laserGold3Move = laserGold3Game.tick(JSON.parse(boardGoldLaser3String), true)[0];
-console.assert(laserGold3Move.includes('ACT(3),LEFT'))
+const laserGold3Move = laserGold3Game.tick(JSON.parse(boardGoldLaser3String))[0];
+console.assert(laserGold3Move.includes('ACT(1),LEFT'))
 
 
 const boardGoldLaser2String = '{"offset":{"x":0,"y":0},' +
@@ -124,7 +202,7 @@ const boardGoldLaser2String = '{"offset":{"x":0,"y":0},' +
     ']}';
 
 const laserGold2Game = new Game();
-const laserGold2Move = laserGold2Game.tick(JSON.parse(boardGoldLaser2String), true)[0];
+const laserGold2Move = laserGold2Game.tick(JSON.parse(boardGoldLaser2String))[0];
 console.assert(laserGold2Move.includes('ACT(1),LEFT'))
 
 
